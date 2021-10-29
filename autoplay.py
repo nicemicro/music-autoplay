@@ -48,6 +48,7 @@ class AppContainer(tk.Tk):
         container.columnconfigure(0, weight=1)
         
         # These variables are controling the listing of possible songs to play
+        self.nplistsize = 25 # the number of songs listed in the not played box
         self.suggestionlist = False
         self.selectable = None        
         self.switch_page("new add", 3, 15)
@@ -93,6 +94,9 @@ class AppContainer(tk.Tk):
                                           c_title)
         if suggestion.empty: return
         self.music.add(suggestion.at[0, "file"])
+        nextplay_text = "Next up: " + suggestion.at[0, "artist"] + " - " + \
+            suggestion.at[0, "title"]
+        self.playerframe.set_next_play(text=nextplay_text)
         self.music.random(0)
     
     def change_current_song(self):
@@ -149,6 +153,11 @@ class AppContainer(tk.Tk):
         self.music.random(0)
         if playnow:            
             self.play_next()
+        else:
+            playlistlast = self.music.playlistinfo()[-1]
+            nextplay_text = "Next up: " + playlistlast["artist"] + " - " + \
+                playlistlast["title"]
+            self.playerframe.set_next_play(text=nextplay_text)
         
     def add_song_from_list(self, playnow, itemnum):
         self.play_file(playnow, self.selectable.at[itemnum, "file"])
@@ -162,13 +171,13 @@ class AppContainer(tk.Tk):
         self.frames["Not_played"].setlist(self.selectable.copy())
         
     def prev_page(self):
-        new_selectable = self.db.list_songs_bck(self.music, 10)
+        new_selectable = self.db.list_songs_bck(self.music, self.nplistsize)
         if new_selectable.empty: return
         self.selectable = new_selectable
         self.list_choices()
         
     def next_page(self):
-        new_selectable = self.db.list_songs_fwd(self.music, 10)
+        new_selectable = self.db.list_songs_fwd(self.music, self.nplistsize)
         if new_selectable.empty: return
         self.selectable = new_selectable
         self.list_choices()

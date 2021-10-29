@@ -18,19 +18,24 @@ class Player(ttk.Frame):
         self.nowplaytext = tk.StringVar()
         self.nowplaylabel = ttk.Label(self, textvariable=self.nowplaytext, 
                                       justify=tk.CENTER)
-        self.nowplaylabel.grid(row=0, column=1, columnspan=5)
+        self.nowplaylabel.grid(row=0, column=0, columnspan=5)
+        self.nextplaytext = tk.StringVar()
+        self.nextplaytext.set("Up next: ")
+        self.nextplaylabel = ttk.Label(self, textvariable=self.nextplaytext, 
+                                      justify=tk.CENTER)
+        self.nextplaylabel.grid(row=1, column=0, columnspan=5)
         ttk.Button(self, text="Play / Pause", command=self.playpause) \
-            .grid(row=1, column=0, columnspan=1)
+            .grid(row=2, column=0, columnspan=1)
         ttk.Button(self, text="Change song", command=self.new_search) \
-            .grid(row=1, column=1, columnspan=1)
+            .grid(row=2, column=1, columnspan=1)
         ttk.Button(self, text="Next song", command=self.step_next) \
-            .grid(row=1, column=2, columnspan=1)
+            .grid(row=2, column=2, columnspan=1)
         ttk.Button(self, text="+",
                    command= lambda: self.controller.volume(+5)) \
-            .grid(row=1, column=3, columnspan=1)
+            .grid(row=2, column=3, columnspan=1)
         ttk.Button(self, text="-",
                    command= lambda: self.controller.volume(-5)) \
-            .grid(row=1, column=4, columnspan=1)
+            .grid(row=2, column=4, columnspan=1)
         
         self.columnconfigure(0, weight = 1)
         self.columnconfigure(1, weight = 1)
@@ -50,6 +55,10 @@ class Player(ttk.Frame):
     def set_now_play(self, text):
         #print("text: ", text)
         self.nowplaytext.set(text)
+    
+    def set_next_play(self, text):
+        #print("text: ", text)
+        self.nextplaytext.set(text)
 
 class Not_played(ttk.Frame):
     def __init__(self, parent, controller):
@@ -57,8 +66,11 @@ class Not_played(ttk.Frame):
         self.controller = controller
         
         # MIDSECTION
-        self.songlistbox = ttk.Treeview(self, columns=("Album", "Plays", \
-            "Last", "First"), selectmode='browse', height=10)
+        self.songlistframe = ttk.Frame(self)
+        self.songlistframe.grid(row=0, column=0, columnspan=5, sticky="nsew")
+        self.songlistbox = ttk.Treeview(self.songlistframe, \
+            columns=("Album", "Plays", "Last", "First"), \
+            selectmode='browse', height=25)
         self.songlistbox.heading('#0', text='Song')
         self.songlistbox.heading('#1', text='Album')
         self.songlistbox.heading('#2', text='Plays')
@@ -69,7 +81,15 @@ class Not_played(ttk.Frame):
         self.songlistbox.column('#2', width=20)
         self.songlistbox.column('#3', width=100)
         self.songlistbox.column('#4', width=100)
-        self.songlistbox.grid(row=0, column=0, columnspan=5, sticky="nsew")
+        self.songlistbox.grid(row=0, column=0, sticky="nsew")
+        self.songbar = ttk.Scrollbar(self.songlistframe, orient=tk.VERTICAL,
+                                     command=self.songlistbox.yview)
+        self.songbar.grid(row=0, column=1, sticky="nsew")
+        self.songlistbox.configure(yscrollcommand=self.songbar.set)
+        self.songlistframe.columnconfigure(0, weight=1)
+        self.songlistframe.columnconfigure(1, weight=0)
+        self.songlistframe.rowconfigure(0, weight=1)
+        
         ttk.Button(self, text="Play selected", 
                    command= lambda: self.add_song(True)) \
             .grid(row=1, column=0, columnspan=1)
