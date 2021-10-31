@@ -47,6 +47,8 @@ class AppContainer(tk.Tk):
         container.rowconfigure(1, weight=1)
         container.columnconfigure(0, weight=1)
         
+        self.clear_playlist()
+        
         # These variables are controling the listing of possible songs to play
         self.nplistsize = 25 # the number of songs listed in the not played box
         self.suggestionlist = False
@@ -57,6 +59,20 @@ class AppContainer(tk.Tk):
         self.after(500, self.update_current_played)
         self.after(5000, self.db_maintain)
         self.after(30000, self.save_db)
+        
+    def clear_playlist(self):
+        status = self.music.status()
+        if status["state"] == "stop":
+            self.music.clear()
+            return
+        mpdlistlen = int(status["playlistlength"])
+        if "song" not in status:
+            return
+        mpdlistpos = int(status["song"])
+        if mpdlistpos <= mpdlistlen - 2:
+            self.music.delete((mpdlistpos + 1, mpdlistlen))
+        if mpdlistpos > 0:
+            self.music.delete((0, mpdlistpos))
     
     def play_pause(self):
         if self.music.status()["state"] != "play":
