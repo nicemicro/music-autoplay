@@ -106,6 +106,7 @@ class AppContainer(tk.Tk):
         if len(currentsong) == 0:
             return
         c_artist, c_album, c_title = self.current_song_data(currentsong)
+        self.db.playlist_append(c_artist, c_album, c_title)
         suggestion = self.db.suggest_song(self.music, c_artist, c_album,
                                           c_title)
         if suggestion.empty: return
