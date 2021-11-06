@@ -162,6 +162,7 @@ class Search(ttk.Frame):
                                                             sticky="nse")
         self.searchstring = tk.StringVar()
         self.searchbox = ttk.Entry(self.header, textvariable=self.searchstring)
+        self.searchbox.bind('<Return>', self.search_enter)
         self.searchbox.grid(row=0, column=1, sticky="nsew")
         ttk.Button(self.header, text="Search", command=self.searchnow).\
             grid(row=0, column=2, sticky="nsew")
@@ -199,6 +200,9 @@ class Search(ttk.Frame):
         self.rowconfigure(0, weight = 0)
         self.rowconfigure(1, weight = 1)
         self.rowconfigure(2, weight = 0)
+        
+    def search_enter(self, event):
+        self.searchnow()
         
     def searchnow(self):
         artist_string = self.searchstring.get()
