@@ -7,7 +7,7 @@ Created on Tue Sep 14 09:26:24 2021
 """
 
 import autoplay_gui_elements as apgui
-import autoplay_databases as apdb
+import autoplay_musichandler as apmh
 import os
 #from mpd import MPDmusic
 from mpd_wrapper import MPD
@@ -18,9 +18,9 @@ from tkinter import ttk
 #%%
 
 class AppContainer(tk.Tk):
-    def __init__(self, music, db, *args, **kwargs):
+    def __init__(self, music, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
-        self.music_handler = apdb.MusicHandler(music, db)
+        self.music_handler = apmh.MusicHandler(music)
         self.title("Music Autoplay")
         
         container = ttk.Frame(self)
@@ -64,14 +64,6 @@ class AppContainer(tk.Tk):
         
     def play_next(self):
         self.music_handler.play_next()
-               
-    def add_suggested_song(self):
-        suggestion = self.music_handler.add_suggested_song()
-        if suggestion.empty: return
-        nextplay_text = "Next up: " + suggestion.at[0, "artist"] + " - " + \
-            suggestion.at[0, "title"]
-        self.playerframe.set_next_play(text=nextplay_text)
-        self.music.random(0)
     
     def change_current_song(self):
         self.music_handler.change_current_song()
@@ -91,16 +83,18 @@ class AppContainer(tk.Tk):
         self.frames["Not_played"].setlist(self.selectable.copy())
         
     def prev_page(self):
-        new_selectable = \
-            self.music_handler.songlist_page_switch(self.nplistsize, False)
-        if new_selectable.empty: return
-        self.selectable = new_selectable
-        self.list_choices()
+        self.music_handler.songlist_page_switch(self.nplistsize, False)
+        self.after(50, self.page_change)
         
     def next_page(self):
-        new_selectable = \
-            self.music_handler.songlist_page_switch(self.nplistsize, True)
-        if new_selectable.empty: return
+        self.music_handler.songlist_page_switch(self.nplistsize, True)
+        self.after(50, self.page_change)
+        
+    def page_change(self):
+        new_selectable = self.music_handler.ret_songl_pg_sw()
+        if new_selectable.empty:
+            self.after(200, self.page_change)
+            return
         self.selectable = new_selectable
         self.list_choices()
     
@@ -109,8 +103,14 @@ class AppContainer(tk.Tk):
         self.next_page()
     
     def search_artist(self, artist_string):
-        self.searchresult = \
-            self.music_handler.search_artist(artist_string)
+        self.music_handler.search_artist(artist_string)
+        self.after(50, self.search_artist_fill)
+    
+    def search_artist_fill(self):
+        self.searchresult = self.music_handler.ret_search_artists()
+        if self.searchresult.empty:
+            self.after(200, self.search_artist_fill)
+            return
         self.frames["Search"].setlist(self.searchresult)
     
     def add_found_song(self, playnow, itemnum):
@@ -178,14 +178,11 @@ def main_loop(music, db):
     return cmd != ""
 
 def main():
-    db = apdb.DataBases()
-    db.load_file("data")
-    print("Files loaded")
     music = MPD()                    # create music object
     music.timeout = 100              # network timeout in seconds
     music.idletimeout = None         # for fetching the result of idle command
     mpd_shutoff = mpd_on(music)
-    app = AppContainer(music, db)
+    app = AppContainer(music)
     if mpd_shutoff <= 1:
         print("Mpd version:", music.mpd_version)
         app.mainloop()
