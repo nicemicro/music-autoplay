@@ -46,8 +46,6 @@ class AppContainer(tk.Tk):
         container.rowconfigure(1, weight=1)
         container.columnconfigure(0, weight=1)
         
-        self.music_handler.clear_playlist()
-        
         # These variables are controling the listing of possible songs to play
         self.nplistsize = 25 # the number of songs listed in the not played box
         self.suggestionlist = False
@@ -67,6 +65,13 @@ class AppContainer(tk.Tk):
     
     def change_current_song(self):
         self.music_handler.change_current_song()
+        self.after(50, self.change_song_now)
+    
+    def change_song_now(self):
+        found = self.music_handler.change_song_now()
+        if not found:
+            self.after(200, self.change_song_now)
+            return
     
     def play_file(self, playnow, filename):
         self.music_handler.play_file(playnow, filename)

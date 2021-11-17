@@ -9,6 +9,7 @@ Created on Sun Oct  3 20:35:00 2021
 import pandas as pd
 import engine as e
 from datetime import datetime
+from mpd_wrapper import MPD
 #%%
 
 class DataBases:
@@ -22,8 +23,12 @@ class DataBases:
         self.playablelist = pd.DataFrame([])
         self.plstartindex = 0
         self.plendindex = 0
+        self.music = MPD()                    # create music object
+        self.music.timeout = 100              # network timeout in seconds
+        self.music.idletimeout = None         # for fetching the result of idle command
+        self.music.connect("localhost", 6600)
     
-    def search_song(self, music, artist, album, title):
+    def search_song(self, artist, album, title):
         artist = artist.replace(",", "")
         album = album.replace(",", "")
         title = title.replace(",", "")
@@ -47,9 +52,9 @@ class DataBases:
         if len(s_strings) > 40:
             s_strings = s_strings[0:40]
         
-        result = music.search(*s_strings)
+        result = self.music.search(*s_strings)
         if len(result) == 0:
-            result = music.search(*s_strings2)
+            result = self.music.search(*s_strings2)
         if len(result) <= 1:
             # TODO what the hell happens if the string searched doesn't
             # actually match what we found???
@@ -78,12 +83,12 @@ class DataBases:
                             on=["artist_l", "title_l"])
         return new_list
     
-    def list_songs_fwd(self, music, num):
+    def list_songs_fwd(self, num):
         index = self.plendindex
         songs = self.playablelist
         new_list = pd.DataFrame([])
         while len(new_list.index) < num and index < len(songs.index):            
-            song = self.search_song(music, songs.at[index, "Artist"],
+            song = self.search_song(songs.at[index, "Artist"],
                                     songs.at[index, "Album"],
                                     songs.at[index, "Title"])
             if len(song.index) > 0:
@@ -95,13 +100,13 @@ class DataBases:
         new_list = self.mergesongdata(new_list, songs)
         return new_list
     
-    def list_songs_bck(self, music, num):        
+    def list_songs_bck(self, num):
         index = self.plstartindex
         songs = self.playablelist
         new_list = pd.DataFrame([])
         while len(new_list.index) < num and index > 0:
             index -= 1
-            song = self.search_song(music, songs.at[index, "Artist"],
+            song = self.search_song(songs.at[index, "Artist"],
                                     songs.at[index, "Album"],
                                     songs.at[index, "Title"])
             if len(song.index) > 0:
@@ -112,7 +117,7 @@ class DataBases:
         new_list = self.mergesongdata(new_list, songs)
         return new_list
     
-    def make_suggestion(self, music):
+    def make_suggestion(self):
         song = pd.DataFrame([])
         while song.empty and self.suggestion:
             suggestionlist = self.suggestion[-1]["suggestions"]
@@ -123,7 +128,7 @@ class DataBases:
                 self.suggestion.pop(-1)
                 continue
             place, trial = e.choose_song(suggestionlist, self.playlist)      
-            song = self.search_song(music, suggestionlist.at[place, "Artist"],
+            song = self.search_song(suggestionlist.at[place, "Artist"],
                                     suggestionlist.at[place, "Album"],
                                     suggestionlist.at[place, "Title"])
             self.suggestion[-1]["suggestions"] = \
@@ -133,7 +138,7 @@ class DataBases:
             #print("Selected song: ", song.at[0, "artist"], song.at[0, "title"])
         return song
     
-    def renew_suggestion(self, music, c_artist, c_album, c_title):
+    def renew_suggestion(self, c_artist, c_album, c_title):
         if self.suggestion and c_artist == self.suggestion[-1]["artist"] \
                 and c_album == self.suggestion[-1]["album"] and \
                 c_title == self.suggestion[-1]["title"]:
@@ -142,9 +147,9 @@ class DataBases:
             # the new song's suggestions haven't been created yet, so we can
             # use the current one.
             self.suggestion.pop(-1)
-        return self.make_suggestion(music)
+        return self.make_suggestion()
     
-    def suggest_song(self, music, artist, album, title):
+    def suggest_song(self, artist, album, title):
         if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
                 album != self.suggestion[-1]["album"] or \
                 title != self.suggestion[-1]["title"] or \
@@ -155,9 +160,9 @@ class DataBases:
             self.suggestion.append(currsugg)
             if len(self.suggestion) > 10:
                 self.suggestion.pop(0)
-        return self.make_suggestion(music)
+        return self.make_suggestion()
     
-    def search_artist(self, music, search_string):
+    def search_artist(self, search_string):
         result = pd.DataFrame([])
         if not search_string:
             return result
@@ -175,11 +180,12 @@ class DataBases:
                                         sort_by="rarely")
             full = full.append(partial)
             for index2 in partial.index:
-                song = self.search_song(music, partial.at[index2, "Artist"],
+                song = self.search_song(partial.at[index2, "Artist"],
                                         partial.at[index2, "Album"],
                                         partial.at[index2, "Title"])
                 result = result.append(song[0:1])
         new_list = self.mergesongdata(result, full)
+        new_list = new_list.reset_index(drop=True)
         return new_list
     
     def songlist_append(self, artist, album, title):
@@ -212,11 +218,11 @@ class DataBases:
                 (self.playlist.at[last_index, "Title"].lower() == c_title.lower())):
             self.playlist = self.playlist.drop(last_index)
     
-    def db_maintain(self, music):
-        status = music.status()
+    def db_maintain(self):
+        status = self.music.status()
         if status["state"] != "play":
             return
-        currentsong = music.currentsong()
+        currentsong = self.music.currentsong()
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
         c_artist = currentsong["artist"].replace(",", "")

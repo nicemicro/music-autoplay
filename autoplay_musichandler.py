@@ -17,10 +17,18 @@ class DataBaseWrapper(threading.Thread):
         threading.Thread.__init__(self)
         self.comm = command
         self.resp = response
-        self.db = apdb.DataBases("data")
+        self.db = apdb.DataBases(filename)
         self.cmds = {
-            "search_song": self.db.search_song,
-            "search_artist": self.db.search_artist
+            "new_songlist": self.db.new_songlist,
+            "list_songs_fwd": self.db.list_songs_fwd,
+            "list_songs_bck": self.db.list_songs_bck,
+            "renew_suggestion": self.db.renew_suggestion,
+            "suggest_song": self.db.suggest_song,
+            "search_artist": self.db.search_artist,
+            "remove_pl_current": self.db.remove_pl_current,
+            "db_maintain": self.db.db_maintain,
+            "load_file": self.db.load_file,
+            "save_file": self.db.save_file
             }
     
     def run(self):
@@ -30,17 +38,29 @@ class DataBaseWrapper(threading.Thread):
             if self.comm.empty():
                 continue
             funct, arguments = self.comm.get()
+            print("Received order to run: ", funct)
             if funct in self.cmds:
-                ret = self.cmds[funct](*arguments)
+                if type(arguments) is list:
+                    ret = self.cmds[funct](*arguments)
+                elif type(arguments) is dict:
+                    ret = self.cmds[funct](**arguments)
                 if not ret is None:
-                    self.resp.put(ret)
+                    print("Function ", funct, " returned something.")
+                    self.resp.put([funct, ret])
+            elif funct == "quit":
+                exitFlag=True
 
 #%%
 class MusicHandler():
     def __init__(self, music):
         self.music = music
-        self.db = apdb.DataBases("data")
+        self.comm_que = Queue()
+        self.resp_que = Queue()
+        self.db_wrap = DataBaseWrapper("data", self.comm_que, self.resp_que)
+        self.db_wrap.start()
+        #self.db = apdb.DataBases("data")
         self.clear_playlist()
+        self.result_storage = {}
             
     def clear_playlist(self):
         status = self.music.status()
@@ -61,25 +81,61 @@ class MusicHandler():
             self.music.play()
         else:
             self.music.pause()
+            
+    def get_results_from_queue(self):
+        while not self.resp_que.empty():
+            response = self.resp_que.get()
+            if response[0][0:10] == "list_songs":
+                self.result_storage["list_songs"] = response[1]
+            else:
+                self.result_storage[response[0]] = response[1]
     
     def add_suggested_song(self):
-        self.songsuggestion = pd.DataFrame([])
+        assert "suggest_song" in self.result_storage, \
+            "This should only be called if we started a search for suggested songs"
+        self.get_results_from_queue()
+        if self.result_storage["suggest_song"].empty:
+            return
+        suggestion = self.result_storage.pop("suggest_song")
+        self.music.add(suggestion.at[0, "file"])
+        self.music.random(0)
+    
+    def change_song_now(self):
+        assert "renew_suggestion" in self.result_storage, \
+            "This should only be called if we started a search for suggested songs"
+        self.get_results_from_queue()
+        if self.result_storage["renew_suggestion"].empty:
+            return False
+        suggestion = self.result_storage.pop("renew_suggestion")
+        self.music.add(suggestion.at[0, "file"])
+        self.music.random(0)
+        status = self.music.status()
+        if status["state"] != "play":
+            self.music.play()
+        mpdlistpos = int(status["song"])
+        self.music.next()
+        self.music.delete(mpdlistpos)
+        return True
+    
+    def find_suggested_song(self):
         currentsong = self.music.currentsong()
         if len(currentsong) == 0:
             return
         c_artist, c_album, c_title = self.current_song_data(currentsong)
-        self.db.playlist_append(c_artist, c_album, c_title)
-        suggestion = self.db.suggest_song(self.music, c_artist, c_album,
-                                          c_title)
-        if suggestion.empty: return
-        self.music.add(suggestion.at[0, "file"])
+        self.comm_que.put(["playlist_append", [c_artist, c_album, c_title]])
+        #self.db.playlist_append(c_artist, c_album, c_title)
+        self.comm_que.put(["suggest_song", [c_artist, c_album, c_title]])
+        #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
+        #                                  c_title)
+        self.result_storage["suggest_song"] = pd.DataFrame([])
     
     def change_current_song(self):
         currentsong = self.music.currentsong()
         if len(currentsong) == 0:
             return
         c_artist, c_album, c_title = self.current_song_data(currentsong)
-        self.db.remove_pl_current(c_artist, c_album, c_title)
+        self.comm_que.put(["remove_pl_current", [c_artist, c_album, c_title]])
+        #self.db.remove_pl_current(c_artist, c_album, c_title)
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
@@ -88,15 +144,10 @@ class MusicHandler():
             mpdlistpos = -1
         if mpdlistpos <= mpdlistlen - 2:
             self.music.delete((mpdlistpos + 1, mpdlistlen))
-        suggestion = self.db.renew_suggestion(self.music, c_artist, c_album,
-                                              c_title)
-        if suggestion.empty: return
-        self.music.add(suggestion.at[0, "file"])
-        self.music.random(0)
-        if status["state"] != "play":
-            self.music.play()
-        self.music.next()
-        self.music.delete(mpdlistpos)
+        self.comm_que.put(["renew_suggestion", [c_artist, c_album, c_title]])
+        #suggestion = self.db.renew_suggestion(self.music, c_artist, c_album,
+        #                                      c_title)
+        self.result_storage["renew_suggestion"] = pd.DataFrame([])
     
     def play_file(self, playnow, filename):
         # Clearing everything else from MPD's playlist
@@ -123,7 +174,7 @@ class MusicHandler():
             mpdlistpos = -1
         self.remove_not_played(status)
         if mpdlistpos == mpdlistlen - 1 or mpdlistpos == -1:
-            self.add_suggested_song()
+            self.find_suggested_song()
         if status["state"] != "play":
             self.music.play()
         self.music.next()
@@ -144,23 +195,42 @@ class MusicHandler():
     
     def songlist_page_switch(self, listsize, forward=True):
         if forward:
-            self.songlist_page = self.db.list_songs_fwd(self.music, listsize)
+            self.comm_que.put(["list_songs_fwd", [listsize]])
+            #self.songlist_page = self.db.list_songs_fwd(self.music, listsize)
         else:
-            self.songlist_page = self.db.list_songs_bck(self.music, listsize)
+            self.comm_que.put(["list_songs_bck", [listsize]])
+            #self.songlist_page = self.db.list_songs_bck(self.music, listsize)
+        self.result_storage["list_songs"] = pd.DataFrame([])
     
     def ret_songl_pg_sw(self):
-        return self.songlist_page
+        assert "list_songs" in self.result_storage, \
+            "This should only be called if we started listing a song page"
+        self.get_results_from_queue()
+        if self.result_storage["list_songs"].empty:
+            return pd.DataFrame([])
+        response = self.result_storage.pop("list_songs")
+        return response
     
     def new_songlist(self, sort_by, min_play, max_play):
-        self.db.new_songlist(sort_by=sort_by, min_play=min_play,
-                             max_play=max_play)
-    
+        self.comm_que.put(["new_songlist", {"sort_by": sort_by,
+                                            "min_play": min_play,
+                                            "max_play": max_play}])
+        #self.db.new_songlist(sort_by=sort_by, min_play=min_play,
+        #                     max_play=max_play)
+        
     def search_artist(self, artist_string):
-        self.found_songs = self.db.search_artist(self.music, artist_string)
-        self.found_songs = self.found_songs.reset_index(drop=True)
+        self.comm_que.put(["search_artist", [artist_string]])
+        #self.found_songs = self.db.search_artist(self.music, artist_string)
+        self.result_storage["search_artist"] = pd.DataFrame([])
     
     def ret_search_artists(self):
-        return self.found_songs
+        assert "search_artist" in self.result_storage, \
+            "This should only be called if we started a search for artists."
+        self.get_results_from_queue()
+        if self.result_storage["search_artist"].empty:
+            return pd.DataFrame([])
+        response = self.result_storage.pop("search_artist")
+        return response
     
     def song_on_playlist(self, place):
         status = self.music.status()
@@ -182,14 +252,20 @@ class MusicHandler():
         mpdlistpos = int(status["song"])
         if mpdlistpos == mpdlistlen - 1:
             # need to add a song to the list automatically
-            self.add_suggested_song()
+            if "suggest_song" in self.result_storage:
+                # we are looking for a song to suggest, so let's add it
+                self.add_suggested_song()
+            else:
+                self.find_suggested_song()
         return current
     
     def db_maintain(self):
-        self.db.db_maintain(self.music)
+        self.comm_que.put(["db_maintain", []])
+        #self.db.db_maintain(self.music)
     
     def save_db(self):
-        self.db.save_file()
+        self.comm_que.put(["save_file", []])
+        #self.db.save_file()
     
     def remove_not_played(self, status):
         if status["state"] != "stop":
@@ -201,10 +277,14 @@ class MusicHandler():
                 currentsong = self.music.currentsong() 
                 c_artist, c_album, c_title = \
                     self.current_song_data(currentsong)
-                self.db.remove_pl_current(c_artist, c_album, c_title)
+                self.comm_que.put(["remove_pl_current",
+                                   [c_artist, c_album, c_title]])
+                #self.db.remove_pl_current(c_artist, c_album, c_title)
         
     def destroy(self):
         status = self.music.status()
         self.remove_not_played(status)
-        self.db.save_file()
-        
+        self.save_db()
+        self.comm_que.put(["quit", []])
+        self.db_wrap.join()
+
