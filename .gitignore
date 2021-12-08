@@ -1,0 +1,3 @@
+*.pckl
+*.csv
+__pycache__
