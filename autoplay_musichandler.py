@@ -11,6 +11,8 @@ import time
 from queue import Queue
 import autoplay_databases as apdb
 import pandas as pd
+
+FWDLIST = 4
 #%%
 class DataBaseWrapper(threading.Thread):
     def __init__(self, filename, command, response):
@@ -38,14 +40,14 @@ class DataBaseWrapper(threading.Thread):
             if self.comm.empty():
                 continue
             funct, arguments = self.comm.get()
-            print("Received order to run: ", funct)
+            # print("Received order to run: ", funct)
             if funct in self.cmds:
                 if type(arguments) is list:
                     ret = self.cmds[funct](*arguments)
                 elif type(arguments) is dict:
                     ret = self.cmds[funct](**arguments)
                 if not ret is None:
-                    print("Function ", funct, " returned something.")
+                    # print("Function ", funct, " returned something.")
                     self.resp.put([funct, ret])
             elif funct == "quit":
                 exitFlag=True
@@ -118,13 +120,13 @@ class MusicHandler():
         return True
     
     def find_suggested_song(self):
-        currentsong = self.music.currentsong()
-        if len(currentsong) == 0:
-            return
-        c_artist, c_album, c_title = self.current_song_data(currentsong)
-        self.comm_que.put(["playlist_append", [c_artist, c_album, c_title]])
+        #currentsong = self.music.currentsong()
+        #if len(currentsong) == 0:
+        #    return
+        #c_artist, c_album, c_title = self.current_song_data(currentsong)
+        #self.comm_que.put(["playlist_append", [c_artist, c_album, c_title]])
         #self.db.playlist_append(c_artist, c_album, c_title)
-        self.comm_que.put(["suggest_song", [c_artist, c_album, c_title]])
+        self.comm_que.put(["suggest_song", []])
         #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
         #                                  c_title)
         self.result_storage["suggest_song"] = pd.DataFrame([])
@@ -165,13 +167,14 @@ class MusicHandler():
         if playnow:            
             self.play_next()
         
-    def play_next(self):
+    def play_next(self, jumpto):
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
             mpdlistpos = int(status["song"])
         else:
             mpdlistpos = -1
+        #TODO check what the jumpto is (0, mpdlispos, >mpdlistpos, etc.)
         self.remove_not_played(status)
         if mpdlistpos == mpdlistlen - 1 or mpdlistpos == -1:
             self.find_suggested_song()
@@ -232,32 +235,43 @@ class MusicHandler():
         response = self.result_storage.pop("search_artist")
         return response
     
-    def song_on_playlist(self, place):
-        status = self.music.status()
+    def song_on_playlist(self, status):
         if not "song" in status:
             return {}
         current = int(status["song"])
         pllength = int(status["playlistlength"])
-        if place + current >= pllength:
+        if current >= pllength:
             return {}
-        return self.music.playlistinfo()[place+current]
+        return self.music.playlistinfo()[current:]
     
     def song_played(self):
         current = self.music.currentsong()
         status = self.music.status()
         current["state"] = status["state"]
         if current["state"] == "stop":
-            return current
+            return [{"display": "STOPPED", "album": "", "status": "",
+                     "pos": -1}]
         mpdlistlen = int(status["playlistlength"])
         mpdlistpos = int(status["song"])
-        if mpdlistpos == mpdlistlen - 1:
+        if mpdlistpos >= mpdlistlen - FWDLIST:
             # need to add a song to the list automatically
             if "suggest_song" in self.result_storage:
-                # we are looking for a song to suggest, so let's add it
+                # we are looking for a song to suggest, so let's add it if ready
                 self.add_suggested_song()
             else:
                 self.find_suggested_song()
-        return current
+        playlistend = self.song_on_playlist(status)
+        for songdata in playlistend:
+            songdata["display"] = (songdata["artist"] + " - " + \
+                                   songdata["title"])
+            if not "album" in songdata:
+                songdata["album"] = ""
+            songdata["status"] = ""
+        if current["state"] == "pause":
+            playlistend[0]["status"] = "(Paused)"
+        else:
+            playlistend[0]["status"] = "[Playing]"
+        return playlistend
     
     def db_maintain(self):
         self.comm_que.put(["db_maintain", []])

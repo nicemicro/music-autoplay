@@ -28,7 +28,7 @@ class AppContainer(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         
-        self.playerframe = apgui.Player(parent=container, controller=self)
+        self.playerframe = apgui.Player(container, self, apmh.FWDLIST+1)
         self.playerframe.grid(row=0, column=0, sticky="nsew")
         self.bottomsection = ttk.Notebook(container)
         self.bottomsection.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
@@ -60,8 +60,8 @@ class AppContainer(tk.Tk):
     def play_pause(self):
         self.music_handler.play_pause()
         
-    def play_next(self):
-        self.music_handler.play_next()
+    def play_next(self, place):
+        self.music_handler.play_next(place)
     
     def change_current_song(self):
         self.music_handler.change_current_song()
@@ -75,7 +75,8 @@ class AppContainer(tk.Tk):
     
     def play_file(self, playnow, filename):
         self.music_handler.play_file(playnow, filename)
-        self.update_next_played()
+        current = self.music_handler.song_played()
+        self.playerframe.set_now_play(current)
     
     def add_song_from_list(self, playnow, itemnum):
         self.play_file(playnow, self.selectable.at[itemnum, "file"])
@@ -121,26 +122,25 @@ class AppContainer(tk.Tk):
     def add_found_song(self, playnow, itemnum):
         self.play_file(playnow, self.searchresult.at[itemnum, "file"])
         
-    def update_next_played(self):
-        next_song = self.music_handler.song_on_playlist(1)
-        if next_song:
-            nextplay_text = "Next up: " + next_song["artist"] + " - " + \
-                next_song["title"]
-            self.playerframe.set_next_play(text=nextplay_text)
-        else:
-            self.playerframe.set_next_play(text="Next up: ")
+    #def update_next_played(self):
+    #    next_song = self.music_handler.song_on_playlist()
+    #    if next_song:
+    #        nextplay_text = "Next up: " + next_song["artist"] + " - " + \
+    #            next_song["title"]
+    #        self.playerframe.set_next_play(text=nextplay_text)
+    #    else:
+    #        self.playerframe.set_next_play(text="Next up: ")
 
     def update_current_played(self):
-        self.update_next_played()
+        #self.update_next_played()
         current = self.music_handler.song_played()
-        if current["state"] == "stop":
-            self.playerframe.set_now_play(text="Stopped")
-            self.after(500, self.update_current_played)
-            return
-        current_text = current["artist"] + " - " + current["title"]
-        if current["state"] == "pause":
-            current_text = current_text + " (Paused)"
-        self.playerframe.set_now_play(text=current_text)
+        #if current["state"] == "stop":
+        #    self.playerframe.set_now_play({"display": "[Stopped]"})
+        #    self.after(500, self.update_current_played)
+        #    return
+        #current_text = current["artist"] + " - " + current["title"]
+
+        self.playerframe.set_now_play(current)
         self.after(500, self.update_current_played)
     
     def db_maintain(self):

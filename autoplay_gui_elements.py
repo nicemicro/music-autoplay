@@ -10,20 +10,29 @@ import tkinter as tk
 from tkinter import ttk
 
 class Player(ttk.Frame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, playlist):
         ttk.Frame.__init__(self, parent)
         self.controller = controller
         
         # TOP CONTROL
-        self.nowplaytext = tk.StringVar()
-        self.nowplaylabel = ttk.Label(self, textvariable=self.nowplaytext, 
-                                      justify=tk.CENTER)
-        self.nowplaylabel.grid(row=0, column=0, columnspan=5)
-        self.nextplaytext = tk.StringVar()
-        self.nextplaytext.set("Up next: ")
-        self.nextplaylabel = ttk.Label(self, textvariable=self.nextplaytext, 
-                                      justify=tk.CENTER)
-        self.nextplaylabel.grid(row=1, column=0, columnspan=5)
+        self.playlistbox = ttk.Treeview(self, \
+            columns=("Album", "Status"), selectmode='browse', height=playlist)
+        self.playlistbox.heading('#0', text='Song')
+        self.playlistbox.heading('#1', text='Album')
+        self.playlistbox.heading('#2', text='Status')
+        self.playlistbox.column('#0', stretch=tk.YES)
+        self.playlistbox.column('#1', width=100)
+        self.playlistbox.column('#2', width=20)
+        self.playlistbox.grid(row=0, column=0, columnspan=5, sticky="nsew")
+        #self.nowplaytext = tk.StringVar()
+        #self.nowplaylabel = ttk.Label(self, textvariable=self.nowplaytext, 
+        #                              justify=tk.CENTER)
+        #self.nowplaylabel.grid(row=0, column=0, columnspan=5)
+        #self.nextplaytext = tk.StringVar()
+        #self.nextplaytext.set("Up next: ")
+        #self.nextplaylabel = ttk.Label(self, textvariable=self.nextplaytext, 
+        #                              justify=tk.CENTER)
+        #self.nextplaylabel.grid(row=1, column=0, columnspan=5)
         ttk.Button(self, text="Play / Pause", command=self.playpause) \
             .grid(row=2, column=0, columnspan=1)
         ttk.Button(self, text="Change song", command=self.new_search) \
@@ -50,11 +59,31 @@ class Player(ttk.Frame):
         self.controller.change_current_song()
     
     def step_next(self):
-        self.controller.play_next()
+        selected = self.playlistbox.focus()
+        if len(selected) < 1:
+            self.controller.play_next(0)
+        if not str(selected).isdigit(): return
+        self.controller.play_next(int(selected))
     
-    def set_now_play(self, text):
+    def set_now_play(self, playlist):
         #print("text: ", text)
-        self.nowplaytext.set(text)
+        positions = [song["pos"] for song in playlist]
+        elements = self.playlistbox.get_children()
+        el_to_del = [pos for pos in elements if not (pos in positions)]
+        for element in el_to_del:
+            self.playlistbox.delete(element)
+        new_el_pos = [pos for pos in positions if not (pos in elements)]
+        new_el = [song for song in playlist if song["pos"] in new_el_pos]
+        for songinfo in playlist:
+            if songinfo["pos"] in elements:
+                self.playlistbox.item(songinfo["pos"],
+                                      text=songinfo["display"],
+                                      values=(songinfo["album"],
+                                              songinfo["status"]))
+            else:
+                self.playlistbox.insert("", "end", iid=songinfo["pos"], \
+                    text=songinfo["display"], values=(songinfo["album"], \
+                    songinfo["status"]))
     
     def set_next_play(self, text):
         #print("text: ", text)
