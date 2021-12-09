@@ -122,7 +122,7 @@ class DataBases:
     
     def make_suggestion(self):
         song = pd.DataFrame([])
-        print("-----------------------\n make_suggestion")
+        #print("-----------------------\n make_suggestion")
         while song.empty and self.suggestion:
             suggestionlist = self.suggestion[-1]["suggestions"]
             print("Checked suggestions for after ",
@@ -132,7 +132,7 @@ class DataBases:
             #print("\nPlaylist last elements:")
             #print(self.playlist[-2:][["Artist", "Title"]])
             if len(suggestionlist.index) == 0:
-                print("suggestion list empty, popping...")
+        #        print("suggestion list empty, popping...")
                 self.suggestion.pop(-1)
                 continue
             place, trial = e.choose_song(suggestionlist, self.playlist)      
@@ -154,16 +154,16 @@ class DataBases:
         self.playlist = self.playlist.append(newline)
         print("\nSelected song: ", song.at[0, "artist"], song.at[0, "title"])
         print("--------------------------")
-        print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
-        print("========================\n")
+        #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
+        #print("========================\n")
         return song
     
     def renew_suggestion(self, c_artist, c_album, c_title):
-        print("----------------------------------")
-        print(f"renew_suggestion {c_artist}, {c_album}, {c_title}")
-        for a, t in zip([line["artist"] for line in self.suggestion],
-                        [line["title"] for line in self.suggestion]):
-            print(f"{a} - {t}")
+        #print("----------------------------------")
+        #print(f"renew_suggestion {c_artist}, {c_album}, {c_title}")
+        #for a, t in zip([line["artist"] for line in self.suggestion],
+        #                [line["title"] for line in self.suggestion]):
+        #    print(f"{a} - {t}")
         if self.suggestion and c_artist == self.suggestion[-1]["artist"] \
                 and c_album == self.suggestion[-1]["album"] and \
                 c_title == self.suggestion[-1]["title"]:
@@ -172,7 +172,7 @@ class DataBases:
             # the new song's suggestions haven't been created yet, so we can
             # use the current one.
             self.suggestion.pop(-1)
-            print("last line popped")
+        #    print("last line popped")
         return self.make_suggestion()
     
     def suggest_song(self):
@@ -182,9 +182,9 @@ class DataBases:
         title = self.playlist.at[lastind, "Title"]
         print("----------------------------------")
         print(f"suggest_song {artist}, {album}, {title}")
-        for a, t in zip([line["artist"] for line in self.suggestion],
-                        [line["title"] for line in self.suggestion]):
-            print(f"{a} - {t}")
+        #for a, t in zip([line["artist"] for line in self.suggestion],
+        #                [line["title"] for line in self.suggestion]):
+        #    print(f"{a} - {t}")
         if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
                 album != self.suggestion[-1]["album"] or \
                 title != self.suggestion[-1]["title"] or \
@@ -193,10 +193,10 @@ class DataBases:
             currsugg["suggestions"] = e.find_similar(self.songlist, artist,
                                                      title, album)
             self.suggestion.append(currsugg)
-            print(f"suggestion added for {artist} - {title}")
+        #    print(f"suggestion added for {artist} - {title}")
             if len(self.suggestion) > 10:
                 self.suggestion.pop(0)
-                print("suggestion list too long: first element popped")
+        #        print("suggestion list too long: first element popped")
         return self.make_suggestion()
     
     def search_artist(self, search_string):
@@ -246,14 +246,12 @@ class DataBases:
                                          "Date added"])
         self.playlist = self.playlist.append(new_line).reset_index(drop=True)
         
-    def remove_pl_current(self, c_artist, c_album, c_title):
+    def delete_song(self, delfrom, delto):
         if self.playlist.empty:
             return
-        last_index = self.playlist.index[-1]
-        if ((self.playlist.at[last_index, "Artist"].lower() == c_artist.lower()) and \
-                (self.playlist.at[last_index, "Album"].lower() == c_album.lower()) and \
-                (self.playlist.at[last_index, "Title"].lower() == c_title.lower())):
-            self.playlist = self.playlist.drop(last_index)
+        self.playlist = self.playlist.drop([delfrom+self.currentplayed,
+                                            delto+self.currentplayed])
+        self.db_maintain()
     
     def db_maintain(self):
         status = self.music.status()
@@ -268,10 +266,16 @@ class DataBases:
         else:
             c_album = ""
         c_title = currentsong["title"].replace(",", "")
+        line = self.currentplayed
+        while line <= self.currentplayed and line < max(self.playlist.index):
+            if c_artist.lower() == self.playlist.at[line, "Artist"].lower() and \
+                c_title.lower() == self.playlist.at[line, "Title"].lower() and \
+                c_album.lower() == self.playlist.at[line, "Album"].lower():
+                    self.currentplayed = line
+                    print("Currently played: ", self.currentplayed)
         # Registering the currently playing song on the songs list
         if elapsed > 180 or elapsed > duration / 2:
             self.songlist_append(c_artist, c_album, c_title)
-        self.playlist_append(c_artist, c_album, c_title)
             
     def load_file(self, fname=""):
         if fname == "":

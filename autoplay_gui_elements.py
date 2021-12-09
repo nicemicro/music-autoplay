@@ -62,8 +62,13 @@ class Player(ttk.Frame):
         selected = self.playlistbox.focus()
         if len(selected) < 1:
             self.controller.play_next(0)
-        if not str(selected).isdigit(): return
-        self.controller.play_next(int(selected))
+        elif str(selected) == "-1":
+            self.controller.play_next(-1)
+        elif not str(selected).isdigit():
+            assert False, \
+                "somehow we got a non-digit ID for an element in playlist"
+        else:
+            self.controller.play_next(int(selected))
     
     def set_now_play(self, playlist):
         #print("text: ", text)
@@ -71,9 +76,10 @@ class Player(ttk.Frame):
         elements = self.playlistbox.get_children()
         el_to_del = [pos for pos in elements if not (pos in positions)]
         for element in el_to_del:
+            print("Delete element ", element)
             self.playlistbox.delete(element)
-        new_el_pos = [pos for pos in positions if not (pos in elements)]
-        new_el = [song for song in playlist if song["pos"] in new_el_pos]
+        #new_el_pos = [pos for pos in positions if not (pos in elements)]
+        #new_el = [song for song in playlist if song["pos"] in new_el_pos]
         for songinfo in playlist:
             if songinfo["pos"] in elements:
                 self.playlistbox.item(songinfo["pos"],
@@ -84,10 +90,6 @@ class Player(ttk.Frame):
                 self.playlistbox.insert("", "end", iid=songinfo["pos"], \
                     text=songinfo["display"], values=(songinfo["album"], \
                     songinfo["status"]))
-    
-    def set_next_play(self, text):
-        #print("text: ", text)
-        self.nextplaytext.set(text)
 
 class Not_played(ttk.Frame):
     def __init__(self, parent, controller):
@@ -178,6 +180,9 @@ class Not_played(ttk.Frame):
         selected = self.songlistbox.focus()
         if len(selected) < 1:
             return
+        if not str(selected).isdigit():
+            assert False, \
+                "somehow we got a non-digit ID for an element in playlist"
         self.controller.add_song_from_list(playnow, int(selected))
 
 class Search(ttk.Frame):
@@ -276,5 +281,7 @@ class Search(ttk.Frame):
         selected = self.songlistbox.focus()
         if len(selected) < 1:
             return
-        if not str(selected).isdigit(): return
+        if not str(selected).isdigit():
+            assert False, \
+                "somehow we got a non-digit ID for an element in playlist"
         self.controller.add_found_song(playnow, int(selected))

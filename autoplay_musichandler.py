@@ -27,7 +27,7 @@ class DataBaseWrapper(threading.Thread):
             "renew_suggestion": self.db.renew_suggestion,
             "suggest_song": self.db.suggest_song,
             "search_artist": self.db.search_artist,
-            "remove_pl_current": self.db.remove_pl_current,
+            "delete_song": self.db.delete_song,
             "db_maintain": self.db.db_maintain,
             "load_file": self.db.load_file,
             "save_file": self.db.save_file
@@ -46,8 +46,10 @@ class DataBaseWrapper(threading.Thread):
                     ret = self.cmds[funct](*arguments)
                 elif type(arguments) is dict:
                     ret = self.cmds[funct](**arguments)
+                else:
+                    assert False, "Unknown command have been passed"
                 if not ret is None:
-                    # print("Function ", funct, " returned something.")
+                    print("Function ", funct, " returned something.")
                     self.resp.put([funct, ret])
             elif funct == "quit":
                 exitFlag=True
@@ -96,10 +98,13 @@ class MusicHandler():
         assert "suggest_song" in self.result_storage, \
             "This should only be called if we started a search for suggested songs"
         self.get_results_from_queue()
+        print("checking for returned suggestions")
         if self.result_storage["suggest_song"].empty:
+            print("no suggestion returned")
             return
         suggestion = self.result_storage.pop("suggest_song")
         self.music.add(suggestion.at[0, "file"])
+        print(suggestion.at[0, "file"])
         self.music.random(0)
     
     def change_song_now(self):
@@ -173,14 +178,21 @@ class MusicHandler():
         if "song" in status:
             mpdlistpos = int(status["song"])
         else:
-            mpdlistpos = -1
-        #TODO check what the jumpto is (0, mpdlispos, >mpdlistpos, etc.)
-        self.remove_not_played(status)
-        if mpdlistpos == mpdlistlen - 1 or mpdlistpos == -1:
+            print("play_next: find suggested song")
             self.find_suggested_song()
-        if status["state"] != "play":
-            self.music.play()
-        self.music.next()
+            return
+        jumpto = max(jumpto, mpdlistpos + 1)
+        jumpto = min([jumpto, mpdlistlen - 1, mpdlistpos + FWDLIST])
+        print("jumpto is: ", jumpto)
+        duration = float(status["duration"])
+        elapsed = float(status["elapsed"])
+        if elapsed <= 180 and elapsed <= duration / 2:
+            self.comm_que.put(["delete_song", [0, jumpto - mpdlistpos]])
+            self.music.delete((mpdlistpos, jumpto))
+        elif jumpto > mpdlistpos + 1:
+            self.comm_que.put(["delete_song", [1, jumpto - mpdlistpos]])
+            self.music.delete((mpdlistpos+1, jumpto))
+            self.music.next()
         self.music.play()
     
     def current_song_data(self, currentsong):
@@ -245,32 +257,32 @@ class MusicHandler():
         return self.music.playlistinfo()[current:]
     
     def song_played(self):
-        current = self.music.currentsong()
         status = self.music.status()
-        current["state"] = status["state"]
-        if current["state"] == "stop":
-            return [{"display": "STOPPED", "album": "", "status": "",
-                     "pos": -1}]
         mpdlistlen = int(status["playlistlength"])
-        mpdlistpos = int(status["song"])
+        if "song" in status:
+            mpdlistpos = int(status["song"])
+        else:
+            mpdlistpos = -1
         if mpdlistpos >= mpdlistlen - FWDLIST:
             # need to add a song to the list automatically
             if "suggest_song" in self.result_storage:
                 # we are looking for a song to suggest, so let's add it if ready
                 self.add_suggested_song()
-            else:
+            elif status["state"] != "stop":
+                # if the music is stopped, we don't look for stuff automatically                
                 self.find_suggested_song()
-        playlistend = self.song_on_playlist(status)
+        playlistend = self.song_on_playlist(status)        
         for songdata in playlistend:
             songdata["display"] = (songdata["artist"] + " - " + \
                                    songdata["title"])
             if not "album" in songdata:
                 songdata["album"] = ""
             songdata["status"] = ""
-        if current["state"] == "pause":
-            playlistend[0]["status"] = "(Paused)"
+        if len(playlistend) == 0:
+            playlistend = [{"display": "STOPPED", "album": "", "status": "",
+                             "pos": "-1", "id": "-1"}]
         else:
-            playlistend[0]["status"] = "[Playing]"
+            playlistend[0]["status"] = "(" + status["state"].upper() + ")"
         return playlistend
     
     def db_maintain(self):
@@ -280,24 +292,11 @@ class MusicHandler():
     def save_db(self):
         self.comm_que.put(["save_file", []])
         #self.db.save_file()
-    
-    def remove_not_played(self, status):
-        if status["state"] != "stop":
-            duration = float(status["duration"])
-            elapsed = float(status["elapsed"])
-            if elapsed <= 180 and elapsed <= duration / 2:
-                # The song not played at least 3 min or half its range shoud
-                # be removed from the independent database playlist
-                currentsong = self.music.currentsong() 
-                c_artist, c_album, c_title = \
-                    self.current_song_data(currentsong)
-                self.comm_que.put(["remove_pl_current",
-                                   [c_artist, c_album, c_title]])
-                #self.db.remove_pl_current(c_artist, c_album, c_title)
         
     def destroy(self):
         status = self.music.status()
-        self.remove_not_played(status)
+        #TODO: remove superfluos elements from list
+        #self.remove_not_played(status)
         self.save_db()
         self.comm_que.put(["quit", []])
         self.db_wrap.join()
