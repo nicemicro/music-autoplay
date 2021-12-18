@@ -76,7 +76,7 @@ class Player(ttk.Frame):
         elements = self.playlistbox.get_children()
         el_to_del = [pos for pos in elements if not (pos in positions)]
         for element in el_to_del:
-            print("Delete element ", element)
+            #print("Delete element ", element)
             self.playlistbox.delete(element)
         #new_el_pos = [pos for pos in positions if not (pos in elements)]
         #new_el = [song for song in playlist if song["pos"] in new_el_pos]

@@ -34,14 +34,18 @@ class DataBaseWrapper(threading.Thread):
             }
     
     def run(self):
-        exitFlag=False
+        exitFlag = False
+        wait = False
         while not exitFlag:
-            time.sleep(0.2)
+            if wait:
+                time.sleep(0.2)
             if self.comm.empty():
+                wait = True
                 continue
             funct, arguments = self.comm.get()
-            # print("Received order to run: ", funct)
+            #print("Received order to run: ", funct)
             if funct in self.cmds:
+                wait = False
                 if type(arguments) is list:
                     ret = self.cmds[funct](*arguments)
                 elif type(arguments) is dict:
@@ -98,14 +102,21 @@ class MusicHandler():
         assert "suggest_song" in self.result_storage, \
             "This should only be called if we started a search for suggested songs"
         self.get_results_from_queue()
-        print("checking for returned suggestions")
+        #print("  - checking for returned suggestions")
         if self.result_storage["suggest_song"].empty:
-            print("no suggestion returned")
+            #print("    no suggestion returned")
             return
         suggestion = self.result_storage.pop("suggest_song")
         self.music.add(suggestion.at[0, "file"])
-        print(suggestion.at[0, "file"])
+        #print("    suggestion returned: ", suggestion.at[0, "file"])
         self.music.random(0)
+        # If the music is stopped, but we get a new song in, that means that
+        # we got a command to look for (and play) this song before
+        status = self.music.status()
+        if status["state"] == "stop":
+            #print(status)
+            mpdlistlen = int(status["playlistlength"])
+            self.music.play(mpdlistlen - 1)
     
     def change_song_now(self):
         assert "renew_suggestion" in self.result_storage, \
@@ -131,6 +142,9 @@ class MusicHandler():
         #c_artist, c_album, c_title = self.current_song_data(currentsong)
         #self.comm_que.put(["playlist_append", [c_artist, c_album, c_title]])
         #self.db.playlist_append(c_artist, c_album, c_title)
+        assert not "suggest_song" in self.result_storage, \
+            "This shouldn't be called if we already have a search going!"
+        #print("Initiating search for new suggestion")
         self.comm_que.put(["suggest_song", []])
         #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
         #                                  c_title)
@@ -177,9 +191,11 @@ class MusicHandler():
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
             mpdlistpos = int(status["song"])
-        else:
+        elif not "suggest_song" in self.result_storage:
             print("play_next: find suggested song")
             self.find_suggested_song()
+            return
+        else:
             return
         jumpto = max(jumpto, mpdlistpos + 1)
         jumpto = min([jumpto, mpdlistlen - 1, mpdlistpos + FWDLIST])
@@ -294,8 +310,8 @@ class MusicHandler():
         #self.db.save_file()
         
     def destroy(self):
-        status = self.music.status()
-        #TODO: remove superfluos elements from list
+        #status = self.music.status()
+        # TODO: remove superfluos elements from list
         #self.remove_not_played(status)
         self.save_db()
         self.comm_que.put(["quit", []])

@@ -125,9 +125,9 @@ class DataBases:
         #print("-----------------------\n make_suggestion")
         while song.empty and self.suggestion:
             suggestionlist = self.suggestion[-1]["suggestions"]
-            print("Checked suggestions for after ",
-                  self.suggestion[-1]["artist"],
-                  " - ", self.suggestion[-1]["title"])
+            #print("Checked suggestions for after ",
+            #      self.suggestion[-1]["artist"],
+            #      " - ", self.suggestion[-1]["title"])
             #print(suggestionlist[0:10][["Artist", "Title", "Point"]])
             #print("\nPlaylist last elements:")
             #print(self.playlist[-2:][["Artist", "Title"]])
@@ -152,8 +152,8 @@ class DataBases:
         newline["Place"] = place + 1
         newline["Trial"] = trial
         self.playlist = self.playlist.append(newline)
-        print("\nSelected song: ", song.at[0, "artist"], song.at[0, "title"])
-        print("--------------------------")
+        #print("\nSelected song: ", song.at[0, "artist"], song.at[0, "title"])
+        #print("--------------------------")
         #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
         #print("========================\n")
         return song
@@ -180,8 +180,8 @@ class DataBases:
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
-        print("----------------------------------")
-        print(f"suggest_song {artist}, {album}, {title}")
+        #print("----------------------------------")
+        #print(f"suggest_song {artist}, {album}, {title}")
         #for a, t in zip([line["artist"] for line in self.suggestion],
         #                [line["title"] for line in self.suggestion]):
         #    print(f"{a} - {t}")
@@ -251,12 +251,14 @@ class DataBases:
             return
         self.playlist = self.playlist.drop([delfrom+self.currentplayed,
                                             delto+self.currentplayed])
+        self.playlist = self.playlist.reset_index(drop=True)
         self.db_maintain()
     
     def db_maintain(self):
         status = self.music.status()
         if status["state"] != "play":
             return
+        print("Start DB maintain...")
         currentsong = self.music.currentsong()
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
@@ -267,15 +269,22 @@ class DataBases:
             c_album = ""
         c_title = currentsong["title"].replace(",", "")
         line = self.currentplayed
-        while line <= self.currentplayed and line < max(self.playlist.index):
+        print("Assumed current played: ", self.currentplayed)
+        while line < max(self.playlist.index):
+            print(c_artist.lower(), " ", self.playlist.at[line, "Artist"].lower())
+            print(c_title.lower(), " ", self.playlist.at[line, "Title"].lower())
+            print(c_album.lower(), " ", self.playlist.at[line, "Album"].lower())
             if c_artist.lower() == self.playlist.at[line, "Artist"].lower() and \
                 c_title.lower() == self.playlist.at[line, "Title"].lower() and \
                 c_album.lower() == self.playlist.at[line, "Album"].lower():
                     self.currentplayed = line
                     print("Currently played: ", self.currentplayed)
+            print(".......")
+            line += 1
         # Registering the currently playing song on the songs list
         if elapsed > 180 or elapsed > duration / 2:
             self.songlist_append(c_artist, c_album, c_title)
+        print("End DB maintain...")
             
     def load_file(self, fname=""):
         if fname == "":
@@ -286,5 +295,7 @@ class DataBases:
     def save_file(self, fname=""):
         if fname == "":
             fname= "data"
+        print("Start file save")
         e.save_data(self.songlist, self.artists, self.albums, self.playlist,
                     fname)
+        print("Save complete")
