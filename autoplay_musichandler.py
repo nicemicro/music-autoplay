@@ -53,7 +53,7 @@ class DataBaseWrapper(threading.Thread):
                 else:
                     assert False, "Unknown command have been passed"
                 if not ret is None:
-                    print("Function ", funct, " returned something.")
+                    #print("Function ", funct, " returned something.")
                     self.resp.put([funct, ret])
             elif funct == "quit":
                 exitFlag=True
@@ -192,23 +192,26 @@ class MusicHandler():
         if "song" in status:
             mpdlistpos = int(status["song"])
         elif not "suggest_song" in self.result_storage:
-            print("play_next: find suggested song")
+            #print("play_next: find suggested song")
             self.find_suggested_song()
             return
         else:
             return
         jumpto = max(jumpto, mpdlistpos + 1)
         jumpto = min([jumpto, mpdlistlen - 1, mpdlistpos + FWDLIST])
-        print("jumpto is: ", jumpto)
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
+        #print(pd.DataFrame(self.music.playlistinfo())[["artist", "title"]])
         if elapsed <= 180 and elapsed <= duration / 2:
             self.comm_que.put(["delete_song", [0, jumpto - mpdlistpos]])
             self.music.delete((mpdlistpos, jumpto))
+            #print(f"deleted {mpdlistpos} - {jumpto}")
         elif jumpto > mpdlistpos + 1:
             self.comm_que.put(["delete_song", [1, jumpto - mpdlistpos]])
             self.music.delete((mpdlistpos+1, jumpto))
+            #print(f"deleted {mpdlistpos+1} - {jumpto}")
             self.music.next()
+        #print(pd.DataFrame(self.music.playlistinfo())[["artist", "title"]])
         self.music.play()
     
     def current_song_data(self, currentsong):

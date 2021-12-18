@@ -249,16 +249,20 @@ class DataBases:
     def delete_song(self, delfrom, delto):
         if self.playlist.empty:
             return
-        self.playlist = self.playlist.drop([delfrom+self.currentplayed,
-                                            delto+self.currentplayed])
+        #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
+        #print(f"  deleting range from {delfrom+self.currentplayed} to {delto+self.currentplayed}")
+        self.playlist = self.playlist.drop(
+            list(range(delfrom+self.currentplayed,  delto+self.currentplayed)))
         self.playlist = self.playlist.reset_index(drop=True)
+        #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
         self.db_maintain()
+        #print(f"  Currently played: {self.currentplayed}")
     
     def db_maintain(self):
         status = self.music.status()
         if status["state"] != "play":
             return
-        print("Start DB maintain...")
+        #print("Start DB maintain...")
         currentsong = self.music.currentsong()
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
@@ -269,22 +273,21 @@ class DataBases:
             c_album = ""
         c_title = currentsong["title"].replace(",", "")
         line = self.currentplayed
-        print("Assumed current played: ", self.currentplayed)
+        #print("Assumed current played: ", self.currentplayed)
+        #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
+        #print(f"Currently played: {c_artist} - {c_title}")
         while line < max(self.playlist.index):
-            print(c_artist.lower(), " ", self.playlist.at[line, "Artist"].lower())
-            print(c_title.lower(), " ", self.playlist.at[line, "Title"].lower())
-            print(c_album.lower(), " ", self.playlist.at[line, "Album"].lower())
             if c_artist.lower() == self.playlist.at[line, "Artist"].lower() and \
                 c_title.lower() == self.playlist.at[line, "Title"].lower() and \
                 c_album.lower() == self.playlist.at[line, "Album"].lower():
                     self.currentplayed = line
-                    print("Currently played: ", self.currentplayed)
-            print(".......")
+                    #print("Currently played set to: ", self.currentplayed)
+                    break
             line += 1
         # Registering the currently playing song on the songs list
         if elapsed > 180 or elapsed > duration / 2:
             self.songlist_append(c_artist, c_album, c_title)
-        print("End DB maintain...")
+        #print("End DB maintain...")
             
     def load_file(self, fname=""):
         if fname == "":
@@ -295,7 +298,7 @@ class DataBases:
     def save_file(self, fname=""):
         if fname == "":
             fname= "data"
-        print("Start file save")
+        #print("Start file save")
         e.save_data(self.songlist, self.artists, self.albums, self.playlist,
                     fname)
-        print("Save complete")
+        #print("Save complete")
