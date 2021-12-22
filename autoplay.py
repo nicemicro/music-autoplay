@@ -63,8 +63,8 @@ class AppContainer(tk.Tk):
     def play_next(self, place):
         self.music_handler.play_next(place)
     
-    def change_current_song(self):
-        self.music_handler.change_current_song()
+    def change_current_song(self, place):
+        self.music_handler.change_current_song(place)
         self.after(50, self.change_song_now)
     
     def change_song_now(self):

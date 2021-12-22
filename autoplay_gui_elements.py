@@ -55,10 +55,7 @@ class Player(ttk.Frame):
     def playpause(self):
         self.controller.play_pause()
     
-    def new_search(self):
-        self.controller.change_current_song()
-    
-    def step_next(self):
+    def selection(self):
         selected = self.playlistbox.focus()
         if len(selected) < 1:
             self.controller.play_next(0)
@@ -68,8 +65,14 @@ class Player(ttk.Frame):
             assert False, \
                 "somehow we got a non-digit ID for an element in playlist"
         else:
-            self.controller.play_next(int(selected))
-    
+            return int(selected)
+
+    def new_search(self):
+        self.controller.change_current_song(self.selection())
+
+    def step_next(self):
+        self.controller.play_next(self.selection())
+
     def set_now_play(self, playlist):
         #print("text: ", text)
         positions = [song["pos"] for song in playlist]

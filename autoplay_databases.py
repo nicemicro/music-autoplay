@@ -58,9 +58,13 @@ class DataBases:
         result = self.music.search(*s_strings)
         if len(result) == 0:
             result = self.music.search(*s_strings2)
-        if len(result) <= 1:
+        if len(result) == 0:
+            return pd.DataFrame(result)
+        elif len(result) == 1:
             # TODO what the hell happens if the string searched doesn't
             # actually match what we found???
+            if not "album" in result[0]:
+                result[0]["album"] = ""
             return pd.DataFrame(result)
         result = pd.DataFrame(result)
         result["title"] = result["title"].str.lower()
@@ -180,16 +184,13 @@ class DataBases:
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
-        #print("----------------------------------")
-        #print(f"suggest_song {artist}, {album}, {title}")
-        #for a, t in zip([line["artist"] for line in self.suggestion],
-        #                [line["title"] for line in self.suggestion]):
-        #    print(f"{a} - {t}")
+        print(f"suggest_song {artist}, {album}, {title}")
         if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
                 album != self.suggestion[-1]["album"] or \
                 title != self.suggestion[-1]["title"] or \
                 self.suggestion[-1]["suggestions"].empty:
-            currsugg = {"artist": artist, "album": album, "title": title}
+            currsugg = {"index": lastind, "artist": artist,
+                        "album": album, "title": title}
             currsugg["suggestions"] = e.find_similar(self.songlist, artist,
                                                      title, album)
             self.suggestion.append(currsugg)
@@ -197,6 +198,12 @@ class DataBases:
             if len(self.suggestion) > 10:
                 self.suggestion.pop(0)
         #        print("suggestion list too long: first element popped")
+        print("----------------------------------")
+        print("current suggestion list:")
+        for i, a, t in zip([line["index"] for line in self.suggestion],
+                        [line["artist"] for line in self.suggestion],
+                        [line["title"] for line in self.suggestion]):
+            print(f"    {i}. {a} - {t}")
         return self.make_suggestion()
     
     def search_artist(self, search_string):
@@ -245,15 +252,23 @@ class DataBases:
                                 columns=["Artist", "Album", "Title",
                                          "Date added"])
         self.playlist = self.playlist.append(new_line).reset_index(drop=True)
-        
+
     def delete_song(self, delfrom, delto):
         if self.playlist.empty:
             return
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
         #print(f"  deleting range from {delfrom+self.currentplayed} to {delto+self.currentplayed}")
-        self.playlist = self.playlist.drop(
-            list(range(delfrom+self.currentplayed,  delto+self.currentplayed)))
-        self.playlist = self.playlist.reset_index(drop=True)
+        dellist = list(range(delfrom+self.currentplayed,
+                             delto+self.currentplayed))
+        newsugg = [element for element in self.suggestion if
+                   not element["index"] in dellist]
+        assert len(newsugg) > 0, "Unreachable"
+        index = newsugg[0]["index"]
+        for element in newsugg[1:]:
+            element["index"] = index + 1
+            index += 1
+        self.suggestion = newsugg
+        self.playlist = self.playlist.drop(dellist).reset_index(drop=True)
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
         self.db_maintain()
         #print(f"  Currently played: {self.currentplayed}")

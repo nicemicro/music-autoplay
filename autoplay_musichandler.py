@@ -149,8 +149,24 @@ class MusicHandler():
         #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
         #                                  c_title)
         self.result_storage["suggest_song"] = pd.DataFrame([])
+
+    def play_file(self, playnow, filename):
+        # Clearing everything else from MPD's playlist
+        status = self.music.status()
+        pllength = int(status["playlistlength"])
+        if "song" in status:
+            place = int(status["song"])
+        else:
+            place = -1
+        if place < pllength  - 1 and place != -1:
+            self.music.delete((place + 1, pllength ))
+        # Add the next song
+        self.music.add(filename)
+        self.music.random(0)
+        if playnow:
+            self.play_next()
     
-    def change_current_song(self):
+    def change_current_song(self, jumpto):
         currentsong = self.music.currentsong()
         if len(currentsong) == 0:
             return
@@ -169,22 +185,6 @@ class MusicHandler():
         #suggestion = self.db.renew_suggestion(self.music, c_artist, c_album,
         #                                      c_title)
         self.result_storage["renew_suggestion"] = pd.DataFrame([])
-    
-    def play_file(self, playnow, filename):
-        # Clearing everything else from MPD's playlist
-        status = self.music.status()
-        pllength = int(status["playlistlength"])
-        if "song" in status:
-            place = int(status["song"])
-        else:
-            place = -1
-        if place < pllength  - 1 and place != -1:
-            self.music.delete((place + 1, pllength ))
-        # Add the next song
-        self.music.add(filename)
-        self.music.random(0)
-        if playnow:            
-            self.play_next()
         
     def play_next(self, jumpto):
         status = self.music.status()
