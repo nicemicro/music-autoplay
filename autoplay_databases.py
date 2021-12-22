@@ -184,7 +184,7 @@ class DataBases:
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
-        print(f"suggest_song {artist}, {album}, {title}")
+        #print(f"suggest_song {artist}, {album}, {title}")
         if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
                 album != self.suggestion[-1]["album"] or \
                 title != self.suggestion[-1]["title"] or \
@@ -198,13 +198,13 @@ class DataBases:
             if len(self.suggestion) > 10:
                 self.suggestion.pop(0)
         #        print("suggestion list too long: first element popped")
-        print("----------------------------------")
-        print("current suggestion list:")
-        for i, a, t in zip([line["index"] for line in self.suggestion],
-                        [line["artist"] for line in self.suggestion],
-                        [line["title"] for line in self.suggestion]):
-            print(f"    {i}. {a} - {t}")
-        return self.make_suggestion()
+        #print("----------------------------------")
+        #print("current suggestion list:")
+        #for i, a, t in zip([line["index"] for line in self.suggestion],
+        #                [line["artist"] for line in self.suggestion],
+        #                [line["title"] for line in self.suggestion]):
+        #    print(f"    {i}. {a} - {t}")
+        #return self.make_suggestion()
     
     def search_artist(self, search_string):
         result = pd.DataFrame([])
