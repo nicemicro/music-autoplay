@@ -235,10 +235,31 @@ class DataBases:
                                 columns=["Artist", "Album", "Title",
                                          "Date added"])
         self.playlist = self.playlist.append(new_line).reset_index(drop=True)
-
+    
+    def add_song(self, position, filedata):
+        if position != -1:
+            ret_data = self.delete_song(position, -1)
+        else:
+            ret_data = pd.DataFrame([{"delfrom": -1, "delto": -1}])
+        #print("current suggestion list:")
+        #for i, a, t in zip([line["index"] for line in self.suggestion],
+        #                [line["artist"] for line in self.suggestion],
+        #                [line["title"] for line in self.suggestion]):
+        #    print(f"    {i}. {a} - {t}")
+        filename, artist, album, title = \
+            filedata[0], filedata[1], filedata[2], filedata[3]
+        new_line = pd.DataFrame([[artist, album, title, datetime.utcnow(),
+                                  -1, -1]],
+                                columns=["Artist", "Album", "Title",
+                                         "Date added", "Place", "Trial"])
+        self.playlist = self.playlist.append(new_line).reset_index(drop=True)
+        ret_data["file"] = filename
+        return ret_data
+    
     def delete_song(self, delfrom, delto):
         if self.playlist.empty:
             return
+        self.db_maintain()
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
         if delto == -1:
             dellist = list(range(delfrom+self.currentplayed,
@@ -246,15 +267,28 @@ class DataBases:
         else:
             dellist = list(range(delfrom+self.currentplayed,
                                  delto+self.currentplayed))
-        #print(dellist)
+        #print(f"currently played: {self.currentplayed}")
+        #print("current suggestion list:")
+        #for i, a, t in zip([line["index"] for line in self.suggestion],
+        #                [line["artist"] for line in self.suggestion],
+        #                [line["title"] for line in self.suggestion]):
+        #    print(f"    {i}. {a} - {t}")
+        #print(f"  to delete {delfrom}-{delto}:", dellist)
         newsugg = [element for element in self.suggestion if
                    not element["index"] in dellist]
-        assert len(newsugg) > 0, "Unreachable"
-        index = newsugg[0]["index"]
-        for element in newsugg[1:]:
-            element["index"] = index + 1
-            index += 1
-        self.suggestion = newsugg
+        if len(newsugg) > 0:
+            index = newsugg[0]["index"]
+            for element in newsugg[1:]:
+                element["index"] = index + 1
+                index += 1
+            self.suggestion = newsugg
+        else:
+            self.suggestion = []
+        #print("new suggestion list:")
+        #for i, a, t in zip([line["index"] for line in newsugg],
+        #                [line["artist"] for line in newsugg],
+        #                [line["title"] for line in newsugg]):
+        #    print(f"    {i}. {a} - {t}")
         self.playlist = self.playlist.drop(dellist).reset_index(drop=True)
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
         return pd.DataFrame([{"delfrom": delfrom, "delto": delto}])

@@ -222,11 +222,8 @@ class Search(ttk.Frame):
         self.songlistbox.configure(yscrollcommand=self.songbar.set)
         
         ttk.Button(self, text="Play selected", 
-                   command= lambda: self.add_song(True)) \
+                   command= lambda: self.add_song()) \
             .grid(row=2, column=0, columnspan=1)
-        ttk.Button(self, text="Queue selected",
-                   command= lambda: self.add_song(False)) \
-            .grid(row=2, column=1, columnspan=1)
         
         self.columnconfigure(0, weight = 1)
         self.columnconfigure(1, weight = 1)
@@ -278,11 +275,12 @@ class Search(ttk.Frame):
                         songinfo["Added first"]))
             s_ind += 1
     
-    def add_song(self, playnow):
+    def add_song(self):
         selected = self.songlistbox.focus()
         if len(selected) < 1:
             return
         if not str(selected).isdigit():
             assert False, \
                 "somehow we got a non-digit ID for an element in playlist"
-        self.controller.add_found_song(playnow, int(selected))
+        position = self.controller.playerframe.selection()
+        self.controller.add_found_song(position, int(selected))

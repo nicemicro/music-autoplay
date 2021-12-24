@@ -66,11 +66,15 @@ class AppContainer(tk.Tk):
     def change_song(self, place):
         self.music_handler.change_song(place)
   
-    def play_file(self, position, filename):
-        self.music_handler.play_file(position, filename)
+    def play_file(self, position, filedata):
+        self.music_handler.play_file(position, filedata)
     
     def add_song_from_list(self, position, itemnum):
-        self.play_file(position, self.selectable.at[itemnum, "file"])
+        filedata = [self.selectable.at[itemnum, "file"],
+                    self.selectable.at[itemnum, "artist"],
+                    self.selectable.at[itemnum, "album"],
+                    self.selectable.at[itemnum, "title"]]
+        self.play_file(position, filedata)
 
     def volume(self, change):
         self.music_handler.volume(change)
@@ -111,7 +115,11 @@ class AppContainer(tk.Tk):
         self.frames["Search"].setlist(self.searchresult)
     
     def add_found_song(self, playnow, itemnum):
-        self.play_file(playnow, self.searchresult.at[itemnum, "file"])
+        filedata = [self.searchresult.at[itemnum, "file"],
+                    self.searchresult.at[itemnum, "artist"],
+                    self.searchresult.at[itemnum, "album"],
+                    self.searchresult.at[itemnum, "title"]]
+        self.play_file(playnow, filedata)
         
     #def update_next_played(self):
     #    next_song = self.music_handler.song_on_playlist()
