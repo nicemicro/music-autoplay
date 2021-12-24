@@ -155,7 +155,13 @@ class MusicHandler():
             delto = delete_this.at[0, "delto"] + mpdlistpos
         self.music.delete((delfrom, delto))
         self.comm_que.put(["db_maintain", []])
+        if delfrom == 0 and not "suggest_song" in self.result_storage:
+            self.find_suggested_song()
         #print(f"executed mpd deletion {delfrom}-{delto} ({mpdlistlen})")
+    
+    def delete_command(self, delfrom, delto):
+        self.comm_que.put(["delete_song", [delfrom, delto]])
+        self.result_storage["delete_song"] = pd.DataFrame([])
     
     def change_song(self, recalc):
         status = self.music.status()
@@ -175,8 +181,7 @@ class MusicHandler():
             recalc = max(recalc, mpdlistpos)
         else:
             recalc = max(recalc, mpdlistpos + 1)
-        self.comm_que.put(["delete_song", [recalc - mpdlistpos, -1]])
-        self.result_storage["delete_song"] = pd.DataFrame([])
+        self.delete_command(recalc - mpdlistpos, -1)
         
     def play_next(self, jumpto):
         #print(f"play_next called with jumpto={jumpto}")
@@ -196,11 +201,9 @@ class MusicHandler():
         elapsed = float(status["elapsed"])
         #print(pd.DataFrame(self.music.playlistinfo())[["artist", "title"]])
         if elapsed <= 180 and elapsed <= duration / 2:
-            self.comm_que.put(["delete_song", [0, jumpto - mpdlistpos]])
-            self.result_storage["delete_song"] = pd.DataFrame([])
+            self.delete_command(0, jumpto - mpdlistpos)
         elif jumpto > mpdlistpos + 1:
-            self.comm_que.put(["delete_song", [1, jumpto - mpdlistpos]])
-            self.result_storage["delete_song"] = pd.DataFrame([])
+            self.delete_command(1, jumpto - mpdlistpos)
     
     def current_song_data(self, currentsong):
         c_artist = currentsong["artist"].replace(",", "")

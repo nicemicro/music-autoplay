@@ -243,11 +243,10 @@ class DataBases:
         if delto == -1:
             dellist = list(range(delfrom+self.currentplayed,
                                  max(self.playlist.index)+ 1))
-            #print(f"  deleting range from {delfrom+self.currentplayed} to {max(self.playlist.index)}")
         else:
             dellist = list(range(delfrom+self.currentplayed,
                                  delto+self.currentplayed))
-            #print(f"  deleting range from {delfrom+self.currentplayed} to {delto+self.currentplayed}")
+        #print(dellist)
         newsugg = [element for element in self.suggestion if
                    not element["index"] in dellist]
         assert len(newsugg) > 0, "Unreachable"
@@ -259,7 +258,6 @@ class DataBases:
         self.playlist = self.playlist.drop(dellist).reset_index(drop=True)
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
         return pd.DataFrame([{"delfrom": delfrom, "delto": delto}])
-        #print(f"  Currently played: {self.currentplayed}")
     
     def db_maintain(self):
         status = self.music.status()
