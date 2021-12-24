@@ -162,25 +162,8 @@ class DataBases:
         #print("========================\n")
         return song
     
-    def renew_suggestion(self, c_artist, c_album, c_title):
-        #print("----------------------------------")
-        #print(f"renew_suggestion {c_artist}, {c_album}, {c_title}")
-        #for a, t in zip([line["artist"] for line in self.suggestion],
-        #                [line["title"] for line in self.suggestion]):
-        #    print(f"{a} - {t}")
-        if self.suggestion and c_artist == self.suggestion[-1]["artist"] \
-                and c_album == self.suggestion[-1]["album"] and \
-                c_title == self.suggestion[-1]["title"]:
-            # If the current suggestion is already for the song now playing,
-            # we need to go back to the previous suggestion. If not, that means
-            # the new song's suggestions haven't been created yet, so we can
-            # use the current one.
-            self.suggestion.pop(-1)
-        #    print("last line popped")
-        return self.make_suggestion()
-    
     def suggest_song(self):
-        lastind = self.playlist.index[-1]        
+        lastind = self.playlist.index[-1]
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
@@ -204,7 +187,7 @@ class DataBases:
         #                [line["artist"] for line in self.suggestion],
         #                [line["title"] for line in self.suggestion]):
         #    print(f"    {i}. {a} - {t}")
-        #return self.make_suggestion()
+        return self.make_suggestion()
     
     def search_artist(self, search_string):
         result = pd.DataFrame([])
@@ -257,9 +240,14 @@ class DataBases:
         if self.playlist.empty:
             return
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
-        #print(f"  deleting range from {delfrom+self.currentplayed} to {delto+self.currentplayed}")
-        dellist = list(range(delfrom+self.currentplayed,
-                             delto+self.currentplayed))
+        if delto == -1:
+            dellist = list(range(delfrom+self.currentplayed,
+                                 max(self.playlist.index)+ 1))
+            #print(f"  deleting range from {delfrom+self.currentplayed} to {max(self.playlist.index)}")
+        else:
+            dellist = list(range(delfrom+self.currentplayed,
+                                 delto+self.currentplayed))
+            #print(f"  deleting range from {delfrom+self.currentplayed} to {delto+self.currentplayed}")
         newsugg = [element for element in self.suggestion if
                    not element["index"] in dellist]
         assert len(newsugg) > 0, "Unreachable"
@@ -270,7 +258,7 @@ class DataBases:
         self.suggestion = newsugg
         self.playlist = self.playlist.drop(dellist).reset_index(drop=True)
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
-        self.db_maintain()
+        return pd.DataFrame([{"delfrom": delfrom, "delto": delto}])
         #print(f"  Currently played: {self.currentplayed}")
     
     def db_maintain(self):

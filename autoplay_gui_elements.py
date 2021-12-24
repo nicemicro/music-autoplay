@@ -58,17 +58,17 @@ class Player(ttk.Frame):
     def selection(self):
         selected = self.playlistbox.focus()
         if len(selected) < 1:
-            self.controller.play_next(0)
-        elif str(selected) == "-1":
-            self.controller.play_next(-1)
-        elif not str(selected).isdigit():
+            return(0)
+        if str(selected) == "-1":
+            return(-1)
+        if not str(selected).isdigit():
             assert False, \
                 "somehow we got a non-digit ID for an element in playlist"
         else:
             return int(selected)
 
     def new_search(self):
-        self.controller.change_current_song(self.selection())
+        self.controller.change_song(self.selection())
 
     def step_next(self):
         self.controller.play_next(self.selection())
@@ -124,12 +124,9 @@ class Not_played(ttk.Frame):
         self.songlistframe.columnconfigure(1, weight=0)
         self.songlistframe.rowconfigure(0, weight=1)
         
-        ttk.Button(self, text="Play selected", 
-                   command= lambda: self.add_song(True)) \
+        ttk.Button(self, text="Add selected",
+                   command= lambda: self.add_song()) \
             .grid(row=1, column=0, columnspan=1)
-        ttk.Button(self, text="Queue selected",
-                   command= lambda: self.add_song(False)) \
-            .grid(row=1, column=1, columnspan=1)
             
         ttk.Button(self, text="<- Page", 
                    command= lambda: self.controller.prev_page()) \
@@ -179,14 +176,15 @@ class Not_played(ttk.Frame):
                 songinfo["Added first"]))
             index += 1
     
-    def add_song(self, playnow):
+    def add_song(self):
         selected = self.songlistbox.focus()
         if len(selected) < 1:
             return
         if not str(selected).isdigit():
             assert False, \
                 "somehow we got a non-digit ID for an element in playlist"
-        self.controller.add_song_from_list(playnow, int(selected))
+        position = self.controller.playerframe.selection()
+        self.controller.add_song_from_list(position, int(selected))
 
 class Search(ttk.Frame):
     def __init__(self, parent, controller):

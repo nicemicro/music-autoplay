@@ -63,23 +63,14 @@ class AppContainer(tk.Tk):
     def play_next(self, place):
         self.music_handler.play_next(place)
     
-    def change_current_song(self, place):
-        self.music_handler.change_current_song(place)
-        self.after(50, self.change_song_now)
+    def change_song(self, place):
+        self.music_handler.change_song(place)
+  
+    def play_file(self, position, filename):
+        self.music_handler.play_file(position, filename)
     
-    def change_song_now(self):
-        found = self.music_handler.change_song_now()
-        if not found:
-            self.after(200, self.change_song_now)
-            return
-    
-    def play_file(self, playnow, filename):
-        self.music_handler.play_file(playnow, filename)
-        current = self.music_handler.song_played()
-        self.playerframe.set_now_play(current)
-    
-    def add_song_from_list(self, playnow, itemnum):
-        self.play_file(playnow, self.selectable.at[itemnum, "file"])
+    def add_song_from_list(self, position, itemnum):
+        self.play_file(position, self.selectable.at[itemnum, "file"])
 
     def volume(self, change):
         self.music_handler.volume(change)
