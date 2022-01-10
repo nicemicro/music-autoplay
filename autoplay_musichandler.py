@@ -127,7 +127,7 @@ class MusicHandler():
         #self.db.playlist_append(c_artist, c_album, c_title)
         assert not "suggest_song" in self.result_storage, \
             "This shouldn't be called if we already have a search going!"
-        #print("Initiating search for new suggestion")
+        print("> Initiating search for new suggestion")
         self.comm_que.put(["suggest_song", []])
         #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
         #                                  c_title)
@@ -151,8 +151,11 @@ class MusicHandler():
                 delto = mpdlistlen
             else:
                 delto = song_data.at[0, "delto"] + mpdlistpos
+            print(f"trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
             self.music.delete((delfrom, delto))
         self.music.add(song_data.at[0, "file"])
+        if song_data.at[0, "jump"]:
+            self.music.next()
         #print("    suggestion returned: ", suggestion.at[0, "file"])
         self.music.random(0)
         # If the music is stopped, but we get a new song in, that means that
@@ -167,13 +170,26 @@ class MusicHandler():
     def play_file(self, position, filedata):
         filename, artist, album, title = \
             filedata[0], filedata[1], filedata[2], filedata[3]
-        #print(f"play_file {position}, {filename}, {artist}, {album}, {title}")
+        print(f"> play_file {position}, {filename}, {artist}, {album}, {title}")
         if "add song" in self.result_storage:
             return
         status = self.music.status()
+        jumpnext = False
         if not "song" in status:
             position = -1
-        self.comm_que.put(["add_song", [position, filedata]])
+        else:
+            mpdlistpos = int(status["song"])
+            if position == -2:
+                position = 0
+            else:
+                position -= mpdlistpos
+            assert position >= 0, "Unreachable"
+            duration = float(status["duration"])
+            elapsed = float(status["elapsed"])
+            if position == 0 and (elapsed > 180 or elapsed > duration / 2):
+                jumpnext = True
+                position = 1
+        self.comm_que.put(["add_song", [position, filedata, jumpnext]])
         self.result_storage["add_song"] = pd.DataFrame([])
     
     def delete_mpd(self):
@@ -194,18 +210,28 @@ class MusicHandler():
             delto = mpdlistlen
         else:
             delto = delete_this.at[0, "delto"] + mpdlistpos
+        print(f"  trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
         self.music.delete((delfrom, delto))
+        if delete_this.at[0, "jump"] and delto - delfrom < FWDLIST:
+            print("  jumped to next song")
+            self.music.next()
+        elif delete_this.at[0, "jump"]:
+            print("  stopped playing")
+            self.music.next()
+            self.music.stop()
         self.comm_que.put(["db_maintain", []])
-        if delfrom == 0 and not "suggest_song" in self.result_storage:
+        if delto > delfrom and not "suggest_song" in self.result_storage:
+            print("  search suggested song because something was deleted")
             self.find_suggested_song()
         #print(f"executed mpd deletion {delfrom}-{delto} ({mpdlistlen})")
     
-    def delete_command(self, delfrom, delto):
-        #print(f"delete_command {delfrom}-{delto}")
-        self.comm_que.put(["delete_song", [delfrom, delto]])
+    def delete_command(self, delfrom, delto, jumpnext=False):
+        print(f"delete_command {delfrom}-{delto}")
+        self.comm_que.put(["delete_song", [delfrom, delto, jumpnext]])
         self.result_storage["delete_song"] = pd.DataFrame([])
     
     def change_song(self, recalc):
+        print(f"> change_song called with recalc={recalc}")
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
@@ -218,15 +244,17 @@ class MusicHandler():
             return
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
+        jumpnext = False
         recalc = min([recalc, mpdlistlen - 1, mpdlistpos + FWDLIST])
         if elapsed <= 180 and elapsed <= duration / 2:
             recalc = max(recalc, mpdlistpos)
         else:
+            jumpnext = (recalc <= mpdlistpos)
             recalc = max(recalc, mpdlistpos + 1)
-        self.delete_command(recalc - mpdlistpos, -1)
+        self.delete_command(recalc - mpdlistpos, -1, jumpnext)
         
     def play_next(self, jumpto):
-        #print(f"play_next called with jumpto={jumpto}")
+        print(f"> play_next called with jumpto={jumpto}")
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
@@ -243,9 +271,10 @@ class MusicHandler():
         elapsed = float(status["elapsed"])
         #print(pd.DataFrame(self.music.playlistinfo())[["artist", "title"]])
         if elapsed <= 180 and elapsed <= duration / 2:
-            self.delete_command(0, jumpto - mpdlistpos)
-        elif jumpto > mpdlistpos + 1:
-            self.delete_command(1, jumpto - mpdlistpos)
+            self.delete_command(0, jumpto - mpdlistpos, False)
+        else:
+            self.delete_command(1, jumpto - mpdlistpos,
+                                (jumpto <= mpdlistpos + 1))
     
     def current_song_data(self, currentsong):
         c_artist = currentsong["artist"].replace(",", "")
@@ -313,6 +342,9 @@ class MusicHandler():
             self.delete_mpd()
         if "add_song" in self.result_storage:
             self.execute_play_file()
+        if "suggest_song" in self.result_storage:
+            # we are looking for a song to suggest, so let's add it if ready
+            self.add_suggested_song()
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
@@ -321,15 +353,13 @@ class MusicHandler():
             mpdlistpos = -1
         if mpdlistpos >= mpdlistlen - FWDLIST:
             # need to add a song to the list automatically
-            if "suggest_song" in self.result_storage:
-                # we are looking for a song to suggest, so let's add it if ready
-                self.add_suggested_song()
-            elif status["state"] != "stop":
+            if status["state"] != "stop" and \
+                not "suggest_song" in self.result_storage:
                 # if the music is stopped, we don't look for stuff automatically                
                 self.find_suggested_song()
         playlistend = self.song_on_playlist(status)        
         for songdata in playlistend:
-            songdata["display"] = (songdata["artist"] + " - " + \
+            songdata["display"] = (songdata["pos"] + ". " + songdata["artist"] + " - " + \
                                    songdata["title"])
             if not "album" in songdata:
                 songdata["album"] = ""

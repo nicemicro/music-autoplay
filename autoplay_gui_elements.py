@@ -58,7 +58,7 @@ class Player(ttk.Frame):
     def selection(self):
         selected = self.playlistbox.focus()
         if len(selected) < 1:
-            return(0)
+            return(-2)
         if str(selected) == "-1":
             return(-1)
         if not str(selected).isdigit():

@@ -236,11 +236,13 @@ class DataBases:
                                          "Date added"])
         self.playlist = self.playlist.append(new_line).reset_index(drop=True)
     
-    def add_song(self, position, filedata):
+    def add_song(self, position, filedata, jump=False):
+        print(f"add_song position={position}, jump={jump}")
         if position != -1:
-            ret_data = self.delete_song(position, -1)
+            ret_data = self.delete_song(position, -1, jump)
         else:
-            ret_data = pd.DataFrame([{"delfrom": -1, "delto": -1}])
+            ret_data = pd.DataFrame([{"delfrom": -1, "delto": -1,
+                                      "jump": jump}])
         #print("current suggestion list:")
         #for i, a, t in zip([line["index"] for line in self.suggestion],
         #                [line["artist"] for line in self.suggestion],
@@ -256,7 +258,8 @@ class DataBases:
         ret_data["file"] = filename
         return ret_data
     
-    def delete_song(self, delfrom, delto):
+    def delete_song(self, delfrom, delto, jump=False):
+        print(f"delete_song delfrom={delfrom}, delto={delto}, jump={jump}")
         if self.playlist.empty:
             return
         self.db_maintain()
@@ -267,7 +270,8 @@ class DataBases:
         else:
             dellist = list(range(delfrom+self.currentplayed,
                                  delto+self.currentplayed))
-        #print(f"currently played: {self.currentplayed}")
+        print(" database deletion ", dellist)
+        print(f" currently played: {self.currentplayed}")
         #print("current suggestion list:")
         #for i, a, t in zip([line["index"] for line in self.suggestion],
         #                [line["artist"] for line in self.suggestion],
@@ -291,7 +295,8 @@ class DataBases:
         #    print(f"    {i}. {a} - {t}")
         self.playlist = self.playlist.drop(dellist).reset_index(drop=True)
         #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
-        return pd.DataFrame([{"delfrom": delfrom, "delto": delto}])
+        return pd.DataFrame([{"delfrom": delfrom, "delto": delto,
+                              "jump": jump}])
     
     def db_maintain(self):
         status = self.music.status()
@@ -312,6 +317,8 @@ class DataBases:
         #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
         #print(f"Currently played: {c_artist} - {c_title}")
         while line < max(self.playlist.index):
+            if not isinstance(self.playlist.at[line, "Album"], str):
+               self.playlist.at[line, "Album"] = ""
             if c_artist.lower() == self.playlist.at[line, "Artist"].lower() and \
                 c_title.lower() == self.playlist.at[line, "Title"].lower() and \
                 c_album.lower() == self.playlist.at[line, "Album"].lower():
