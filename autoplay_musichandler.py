@@ -380,10 +380,15 @@ class MusicHandler():
         #self.db.save_file()
         
     def destroy(self):
-        #status = self.music.status()
-        # TODO: remove superfluos elements from list
-        #self.remove_not_played(status)
+        status = self.music.status()
+        duration = float(status["duration"])
+        elapsed = float(status["elapsed"])
+        if elapsed <= 180 and elapsed <= duration / 2:
+            self.delete_command(0, -1, False)
+        else:
+            self.delete_command(1, -1, False)
         self.save_db()
         self.comm_que.put(["quit", []])
+        self.music.clear()
         self.db_wrap.join()
 
