@@ -127,7 +127,7 @@ class MusicHandler():
         #self.db.playlist_append(c_artist, c_album, c_title)
         assert not "suggest_song" in self.result_storage, \
             "This shouldn't be called if we already have a search going!"
-        print("> Initiating search for new suggestion")
+        #print("> Initiating search for new suggestion")
         self.comm_que.put(["suggest_song", []])
         #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
         #                                  c_title)
@@ -151,7 +151,7 @@ class MusicHandler():
                 delto = mpdlistlen
             else:
                 delto = song_data.at[0, "delto"] + mpdlistpos
-            print(f"trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
+            #print(f"trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
             self.music.delete((delfrom, delto))
         self.music.add(song_data.at[0, "file"])
         if song_data.at[0, "jump"]:
@@ -170,7 +170,7 @@ class MusicHandler():
     def play_file(self, position, filedata):
         filename, artist, album, title = \
             filedata[0], filedata[1], filedata[2], filedata[3]
-        print(f"> play_file {position}, {filename}, {artist}, {album}, {title}")
+        #print(f"> play_file {position}, {filename}, {artist}, {album}, {title}")
         if "add song" in self.result_storage:
             return
         status = self.music.status()
@@ -210,28 +210,28 @@ class MusicHandler():
             delto = mpdlistlen
         else:
             delto = delete_this.at[0, "delto"] + mpdlistpos
-        print(f"  trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
+        #print(f"  trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
         self.music.delete((delfrom, delto))
         if delete_this.at[0, "jump"] and delto - delfrom < FWDLIST:
-            print("  jumped to next song")
+            #print("  jumped to next song")
             self.music.next()
         elif delete_this.at[0, "jump"]:
-            print("  stopped playing")
+            #print("  stopped playing")
             self.music.next()
             self.music.stop()
         self.comm_que.put(["db_maintain", []])
         if delto > delfrom and not "suggest_song" in self.result_storage:
-            print("  search suggested song because something was deleted")
+            #print("  search suggested song because something was deleted")
             self.find_suggested_song()
         #print(f"executed mpd deletion {delfrom}-{delto} ({mpdlistlen})")
     
     def delete_command(self, delfrom, delto, jumpnext=False):
-        print(f"delete_command {delfrom}-{delto}")
+        #print(f"delete_command {delfrom}-{delto}")
         self.comm_que.put(["delete_song", [delfrom, delto, jumpnext]])
         self.result_storage["delete_song"] = pd.DataFrame([])
     
     def change_song(self, recalc):
-        print(f"> change_song called with recalc={recalc}")
+        #print(f"> change_song called with recalc={recalc}")
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:
@@ -254,7 +254,7 @@ class MusicHandler():
         self.delete_command(recalc - mpdlistpos, -1, jumpnext)
         
     def play_next(self, jumpto):
-        print(f"> play_next called with jumpto={jumpto}")
+        #print(f"> play_next called with jumpto={jumpto}")
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:

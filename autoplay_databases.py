@@ -65,10 +65,18 @@ class DataBases:
             # actually match what we found???
             if not "album" in result[0]:
                 result[0]["album"] = ""
-            return pd.DataFrame(result)
+            result = pd.DataFrame(result)
+            result["artist"] = result["artist"].str.replace(",", "")
+            result["album"] = result["album"].str.replace(",", "")
+            result["title"] = result["title"].str.replace(",", "")
+            return result
+        if not "album" in result[0]:
+            result[0]["album"] = ""
         result = pd.DataFrame(result)
-        result["title"] = result["title"].str.lower()
-        result = result[(result["title"].str.replace(",", "") ==
+        result["artist"] = result["artist"].str.replace(",", "")
+        result["album"] = result["album"].str.replace(",", "")
+        result["title"] = result["title"].str.replace(",", "")
+        result = result[(result["title"].str.lower() ==
                          title.lower())]
         return result.reset_index(drop=True)
     
@@ -129,10 +137,12 @@ class DataBases:
         #print("-----------------------\n make_suggestion")
         while song.empty and self.suggestion:
             suggestionlist = self.suggestion[-1]["suggestions"]
-            #print("Checked suggestions for after ",
-            #      self.suggestion[-1]["artist"],
-            #      " - ", self.suggestion[-1]["title"])
-            #print(suggestionlist[0:10][["Artist", "Title", "Point"]])
+            print("    Checked suggestions for after ",
+                  self.suggestion[-1]["artist"],
+                  " - ", self.suggestion[-1]["title"])
+            print("       remained in suggestionlist: ", len(suggestionlist.index))
+            if len(suggestionlist.index) > 0:
+                print(suggestionlist[0:5][["Artist", "Title", "Point"]])
             #print("\nPlaylist last elements:")
             #print(self.playlist[-2:][["Artist", "Title"]])
             if len(suggestionlist.index) == 0:
@@ -143,6 +153,7 @@ class DataBases:
             song = self.search_song(suggestionlist.at[place, "Artist"],
                                     suggestionlist.at[place, "Album"],
                                     suggestionlist.at[place, "Title"])
+            print(f"selected from list:  {place}")
             self.suggestion[-1]["suggestions"] = \
                 suggestionlist.drop(place).reset_index(drop=True)
             if self.suggestion[-1]["suggestions"].empty:
@@ -167,7 +178,7 @@ class DataBases:
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
-        #print(f"suggest_song {artist}, {album}, {title}")
+        print(f"  suggest_song after {artist}, {album}, {title}")
         if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
                 album != self.suggestion[-1]["album"] or \
                 title != self.suggestion[-1]["title"] or \
