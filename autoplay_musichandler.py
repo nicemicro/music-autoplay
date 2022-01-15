@@ -43,7 +43,8 @@ class DataBaseWrapper(threading.Thread):
                 wait = True
                 continue
             funct, arguments = self.comm.get()
-            #print("Received order to run: ", funct)
+            #if funct != "db_maintain":
+                #print(f"  >> Received order to run: {funct}, {arguments}")
             if funct in self.cmds:
                 wait = False
                 if type(arguments) is list:
@@ -53,7 +54,7 @@ class DataBaseWrapper(threading.Thread):
                 else:
                     assert False, "Unknown command have been passed"
                 if not ret is None:
-                    #print("Function ", funct, " returned something.")
+                    #print(f"   << Function {funct} returned something.")
                     self.resp.put([funct, ret])
             elif funct == "quit":
                 exitFlag=True
@@ -102,10 +103,16 @@ class MusicHandler():
         assert "suggest_song" in self.result_storage, \
             "This should only be called if we started a search for suggested songs"
         self.get_results_from_queue()
-        #print("  - checking for returned suggestions")
+        #print(" < checking for returned suggestions")
         if self.result_storage["suggest_song"].empty:
             #print("    no suggestion returned")
             return
+        if "ignore_suggestion" in self.result_storage:
+            self.result_storage.pop("suggest_song")
+            self.result_storage.pop("ignore_suggestion")
+            #print("   found something, ignored")
+            return
+        #print("   found something")
         suggestion = self.result_storage.pop("suggest_song")
         self.music.add(suggestion.at[0, "file"])
         #print("    suggestion returned: ", suggestion.at[0, "file"])
@@ -137,10 +144,11 @@ class MusicHandler():
         assert "add_song" in self.result_storage, \
             "This should only be called if we initiated adding"
         self.get_results_from_queue()
-        #print("  - checking for returned suggestions")
+        #print(" < checking for returned song info")
         if self.result_storage["add_song"].empty:
             #print("    no suggestion returned")
             return
+        #print("   found something")
         status = self.music.status()
         song_data = self.result_storage.pop("add_song")
         if song_data.at[0, "delfrom"] != -1 and "song" in status:
@@ -151,7 +159,7 @@ class MusicHandler():
                 delto = mpdlistlen
             else:
                 delto = song_data.at[0, "delto"] + mpdlistpos
-            #print(f"trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
+            #print(f" < execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
             self.music.delete((delfrom, delto))
         self.music.add(song_data.at[0, "file"])
         if song_data.at[0, "jump"]:
@@ -191,14 +199,14 @@ class MusicHandler():
                 position = 1
         self.comm_que.put(["add_song", [position, filedata, jumpnext]])
         self.result_storage["add_song"] = pd.DataFrame([])
+        if "suggest_song" in self.result_storage:
+            self.result_storage["ignore_suggestion"] = True
     
     def delete_mpd(self):
         assert "delete_song" in self.result_storage, \
             "This should only be called if we started the deletion process"
         self.get_results_from_queue()
-        #print("  - checking for returned suggestions")
         if self.result_storage["delete_song"].empty:
-            #print("    no suggestion returned")
             return
         status = self.music.status()
         assert ("song" in status), "I have no idea how are we deleting anything"
@@ -210,7 +218,7 @@ class MusicHandler():
             delto = mpdlistlen
         else:
             delto = delete_this.at[0, "delto"] + mpdlistpos
-        #print(f"  trying to execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
+        #print(f" < execute mpd deletion {delfrom}-{delto} ({mpdlistlen})")
         self.music.delete((delfrom, delto))
         if delete_this.at[0, "jump"] and delto - delfrom < FWDLIST:
             #print("  jumped to next song")
@@ -226,7 +234,7 @@ class MusicHandler():
         #print(f"executed mpd deletion {delfrom}-{delto} ({mpdlistlen})")
     
     def delete_command(self, delfrom, delto, jumpnext=False):
-        #print(f"delete_command {delfrom}-{delto}")
+        #print(f"> delete_command {delfrom}-{delto}")
         self.comm_que.put(["delete_song", [delfrom, delto, jumpnext]])
         self.result_storage["delete_song"] = pd.DataFrame([])
     
@@ -252,6 +260,8 @@ class MusicHandler():
             jumpnext = (recalc <= mpdlistpos)
             recalc = max(recalc, mpdlistpos + 1)
         self.delete_command(recalc - mpdlistpos, -1, jumpnext)
+        if "suggest_song" in self.result_storage:
+            self.result_storage["ignore_suggestion"] = True
         
     def play_next(self, jumpto):
         #print(f"> play_next called with jumpto={jumpto}")

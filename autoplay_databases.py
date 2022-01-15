@@ -137,12 +137,12 @@ class DataBases:
         #print("-----------------------\n make_suggestion")
         while song.empty and self.suggestion:
             suggestionlist = self.suggestion[-1]["suggestions"]
-            print("    Checked suggestions for after ",
-                  self.suggestion[-1]["artist"],
-                  " - ", self.suggestion[-1]["title"])
-            print("       remained in suggestionlist: ", len(suggestionlist.index))
-            if len(suggestionlist.index) > 0:
-                print(suggestionlist[0:5][["Artist", "Title", "Point"]])
+            #print("    Checked suggestions for after ",
+            #      self.suggestion[-1]["artist"],
+            #      " - ", self.suggestion[-1]["title"])
+            #print("       remained in suggestionlist: ", len(suggestionlist.index))
+            #if len(suggestionlist.index) > 0:
+            #    print(suggestionlist[0:5][["Artist", "Title", "Point"]])
             #print("\nPlaylist last elements:")
             #print(self.playlist[-2:][["Artist", "Title"]])
             if len(suggestionlist.index) == 0:
@@ -153,7 +153,7 @@ class DataBases:
             song = self.search_song(suggestionlist.at[place, "Artist"],
                                     suggestionlist.at[place, "Album"],
                                     suggestionlist.at[place, "Title"])
-            print(f"selected from list:  {place}")
+            #print(f"selected from list:  {place}")
             self.suggestion[-1]["suggestions"] = \
                 suggestionlist.drop(place).reset_index(drop=True)
             if self.suggestion[-1]["suggestions"].empty:
@@ -178,7 +178,7 @@ class DataBases:
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
-        print(f"  suggest_song after {artist}, {album}, {title}")
+        #print(f"  suggest_song after {artist}, {album}, {title}")
         if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
                 album != self.suggestion[-1]["album"] or \
                 title != self.suggestion[-1]["title"] or \
@@ -248,7 +248,7 @@ class DataBases:
         self.playlist = self.playlist.append(new_line).reset_index(drop=True)
     
     def add_song(self, position, filedata, jump=False):
-        print(f"add_song position={position}, jump={jump}")
+        #print(f"add_song position={position}, jump={jump}")
         if position != -1:
             ret_data = self.delete_song(position, -1, jump)
         else:
@@ -270,7 +270,7 @@ class DataBases:
         return ret_data
     
     def delete_song(self, delfrom, delto, jump=False):
-        print(f"delete_song delfrom={delfrom}, delto={delto}, jump={jump}")
+        #print(f"delete_song delfrom={delfrom}, delto={delto}, jump={jump}")
         if self.playlist.empty:
             return
         self.db_maintain()
@@ -281,8 +281,8 @@ class DataBases:
         else:
             dellist = list(range(delfrom+self.currentplayed,
                                  delto+self.currentplayed))
-        print(" database deletion ", dellist)
-        print(f" currently played: {self.currentplayed}")
+        #print(" database deletion ", dellist)
+        #print(f" currently played: {self.currentplayed}")
         #print("current suggestion list:")
         #for i, a, t in zip([line["index"] for line in self.suggestion],
         #                [line["artist"] for line in self.suggestion],
