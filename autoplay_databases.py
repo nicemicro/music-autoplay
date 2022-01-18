@@ -158,6 +158,8 @@ class DataBases:
                 suggestionlist.drop(place).reset_index(drop=True)
             if self.suggestion[-1]["suggestions"].empty:
                 self.suggestion.pop(-1)
+        if song.empty:
+            return song
         newline = (song[0:1][["artist", "album", "title"]]) \
             .rename({"artist": "Artist", "album": "Album",
                      "title": "Title"}, axis="columns")
