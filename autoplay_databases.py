@@ -32,7 +32,7 @@ class DataBases:
         self.music.idletimeout = None         # for fetching the result of idle command
         self.music.connect("localhost", 6600)
     
-    def search_song(self, artist, album, title):
+    def search_song(self, artist, album, title, strict=True):
         artist = artist.replace(",", "")
         album = album.replace(",", "")
         title = title.replace(",", "")
@@ -69,6 +69,13 @@ class DataBases:
             result["artist"] = result["artist"].str.replace(",", "")
             result["album"] = result["album"].str.replace(",", "")
             result["title"] = result["title"].str.replace(",", "")
+            if strict:
+                if result["artist"].str.lower()[0] != artist.lower():
+                    return pd.DataFrame()
+                if album and result["album"].str.lower()[0] != album.lower():
+                    return pd.DataFrame()
+                if result["title"].str.lower()[0] != title.lower():
+                    return pd.DataFrame()
             return result
         if not "album" in result[0]:
             result[0]["album"] = ""
@@ -76,8 +83,8 @@ class DataBases:
         result["artist"] = result["artist"].str.replace(",", "")
         result["album"] = result["album"].str.replace(",", "")
         result["title"] = result["title"].str.replace(",", "")
-        result = result[(result["title"].str.lower() ==
-                         title.lower())]
+        result = result[(result["title"].str.lower() == title.lower())]
+        result = result[(result["artist"].str.lower() == artist.lower())]
         return result.reset_index(drop=True)
     
     def new_songlist(self, *args, **kwargs):
