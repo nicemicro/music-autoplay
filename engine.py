@@ -404,10 +404,13 @@ def find_not_played(songlist, playlist, artist='', album='', **kwargs):
             first time played) will appear top.
     min_play: the number how many times a song has to have been played to
         appear
+    per_album: whether a song that is on multiple albums should appear as
+        separate entries per album (True) or not (False)
     """
     sort_by = "plays"
     min_play = 0
     max_play = 0
+    per_album = False
     for key, value in kwargs.items():
         if key == 'sort_by':
             sort_by = value.lower()
@@ -415,6 +418,8 @@ def find_not_played(songlist, playlist, artist='', album='', **kwargs):
             min_play = max(int(value), 0)
         if key == 'max_play':
             max_play = max(int(value), 0)
+        if key == 'per_album':
+            per_album = value
     artist = artist.lower()
     album = album.lower()
     songlist = songlist.copy()
@@ -423,26 +428,48 @@ def find_not_played(songlist, playlist, artist='', album='', **kwargs):
     songlist['Title_low'] = songlist['Title'].str.lower()
     songlist['Album_low'] = songlist['Album'].str.lower()
     if artist == '':
-        artist_songs = songlist.groupby( \
-            ['Artist_low', 'Title_low']).agg({'Scrobble time': ['count', \
-            'max', 'min'], 'Artist': ['max'], 'Album': ['max'], \
-            'Title': ['max']})
-        artist_songs = artist_songs.reset_index(drop=False).set_axis([\
-            'Artist_low', 'Title_low', 'Played', 'Played last', 'Added first',\
-            'Artist', 'Album', 'Title'], axis=1, inplace=False)
+        if per_album:
+            artist_songs = songlist.groupby( \
+                ['Artist_low', 'Album_low', 'Title_low']).agg({'Scrobble time': \
+                ['count', 'max', 'min'], 'Artist': ['max'], 'Album': ['max'], \
+                'Title': ['max']})
+            artist_songs = artist_songs.reset_index(drop=False).set_axis([\
+                'Artist_low', 'Album_low', 'Title_low', 'Played', 'Played last', \
+                'Added first', 'Artist', 'Album', 'Title'], axis=1, inplace=False)
+        else:
+            artist_songs = songlist.groupby( \
+                ['Artist_low', 'Title_low']).agg({'Scrobble time': ['count', \
+                'max', 'min'], 'Artist': ['max'], 'Album': ['max'], \
+                'Title': ['max']})
+            artist_songs = artist_songs.reset_index(drop=False).set_axis([\
+                'Artist_low', 'Title_low', 'Played', 'Played last', 'Added first',\
+                'Artist', 'Album', 'Title'], axis=1, inplace=False)
     else:
         if album == '':
             artist_songs = songlist[(songlist['Artist_low'] == artist)]
-            artist_songs = artist_songs.groupby( \
-                ['Title_low']).agg({'Scrobble time': ['count', 'max', 'min'], \
-                'Artist': ['max'], 'Album': ['max'], 'Title': ['max']})
+            if per_album:
+                artist_songs = artist_songs.groupby( \
+                    ['Title_low', 'Album_low']).agg({'Scrobble time': ['count', \
+                    'max', 'min'], 'Artist': ['max'], 'Album': ['max'], \
+                    'Title': ['max']})
+                artist_songs = artist_songs.reset_index(drop=False).set_axis( \
+                    ['Title_low', 'Album_low', 'Played', 'Played last', 'Added first', \
+                    'Artist', 'Album', 'Title'], axis=1, inplace=False)
+            else:
+                artist_songs = artist_songs.groupby( \
+                    ['Title_low']).agg({'Scrobble time': ['count', 'max', 'min'], \
+                    'Artist': ['max'], 'Album': ['max'], 'Title': ['max']})
+                artist_songs = artist_songs.reset_index(drop=False).set_axis( \
+                    ['Title_low', 'Played', 'Played last', 'Added first', \
+                    'Artist', 'Album', 'Title'], axis=1, inplace=False)
         else:
             artist_songs = songlist[(songlist['Artist_low'] == artist) & \
                 (songlist['Album_low'] == album)].groupby(['Title_low']).agg({ \
                 'Scrobble time': ['count', 'max', 'min'], 'Artist': ['max'], \
                 'Album': ['max'], 'Title': ['max']})
-        artist_songs = artist_songs.reset_index(drop=False).set_axis(['Title_low', 'Played',
-                             'Played last', 'Added first', 'Artist', 'Album', 'Title'], axis=1, inplace=False)
+            artist_songs = artist_songs.reset_index(drop=False).set_axis( \
+                ['Title_low', 'Played', 'Played last', 'Added first', \
+                'Artist', 'Album', 'Title'], axis=1, inplace=False)
     if artist_songs.empty:
         print("Error")
         return artist_songs
