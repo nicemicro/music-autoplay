@@ -107,7 +107,7 @@ class DataBases:
                                     songs.at[index, "Album"],
                                     songs.at[index, "Title"])
             if len(song.index) > 0:
-                new_list = new_list.append(song[0:1])
+                new_list = pd.concat([new_list, song[0:1]])
             index += 1
         if len(new_list.index) > 0:
             self.plstartindex = self.plendindex
@@ -125,7 +125,7 @@ class DataBases:
                                     songs.at[index, "Album"],
                                     songs.at[index, "Title"])
             if len(song.index) > 0:
-                new_list = song[0:1].append(new_list)
+                new_list = pd.concat([song[0:1], new_list])
         if len(new_list.index) > 0:
             self.plendindex = self.plstartindex
             self.plstartindex = index
@@ -168,7 +168,7 @@ class DataBases:
         newline["Date added"] = datetime.utcnow()
         newline["Place"] = place + 1
         newline["Trial"] = trial
-        self.playlist = self.playlist.append(newline)
+        self.playlist = pd.concat([self.playlist, newline])
         #print("\nSelected song: ", song.at[0, "artist"], song.at[0, "title"])
         #print("--------------------------")
         #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
@@ -218,12 +218,12 @@ class DataBases:
             partial = e.find_not_played(self.songlist, self.playlist,
                                         artist_match.at[index, "Artist"],
                                         sort_by="rarely")
-            full = full.append(partial)
+            full = pd.concat([full, partial])
             for index2 in partial.index:
                 song = self.search_song(partial.at[index2, "Artist"],
                                         partial.at[index2, "Album"],
                                         partial.at[index2, "Title"])
-                result = result.append(song[0:1])
+                result = pd.concat([result, song[0:1]])
         new_list = self.mergesongdata(result, full)
         new_list = new_list.reset_index(drop=True)
         return new_list
@@ -237,7 +237,7 @@ class DataBases:
         new_line = pd.DataFrame([[artist, album, title, datetime.utcnow()]],
                                 columns=["Artist", "Album", "Title",
                                          "Scrobble time"])
-        self.songlist = new_line.append(self.songlist).reset_index(drop=True)
+        self.songlist = pd.concat([new_line, self.songlist]).reset_index(drop=True)
     
     def playlist_append(self, artist, album, title):        
         last_index = self.playlist.index[-1]
@@ -247,7 +247,7 @@ class DataBases:
         new_line = pd.DataFrame([[artist, album, title, datetime.utcnow()]],
                                 columns=["Artist", "Album", "Title",
                                          "Date added"])
-        self.playlist = self.playlist.append(new_line).reset_index(drop=True)
+        self.playlist = pd.concat([self.playlist, new_line]).reset_index(drop=True)
     
     def add_song(self, position, filedata, jump=False):
         #print(f"add_song position={position}, jump={jump}")
@@ -267,7 +267,7 @@ class DataBases:
                                   -1, -1]],
                                 columns=["Artist", "Album", "Title",
                                          "Date added", "Place", "Trial"])
-        self.playlist = self.playlist.append(new_line).reset_index(drop=True)
+        self.playlist = pd.concat([self.playlist, new_line]).reset_index(drop=True)
         ret_data["file"] = filename
         return ret_data
     

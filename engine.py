@@ -101,8 +101,8 @@ def find_similar(songlist, artist, title, album="", timeframe=30*60,
         result[i]['Point'] = [points[j] if j < len(points) else 0 for j in
                               range(el_num)]
     result_conc = pd.concat(result, sort=False).reset_index(drop=True)
-    result_conc.at[result_conc[(result_conc['Album'].isnull())].index,
-                               'Album'] = ''
+    result_conc.loc[result_conc[(result_conc['Album'].isnull())].index,
+                    'Album'] = ''
     result_sum = result_conc.groupby(['Artist', 'Album', 'Title']).agg(
         {'Scrobble time': ['max'], 'Point': ['sum']}).reset_index().set_axis(
         ['Artist', 'Album', 'Title', 'Played last', 'Point'], axis=1,
