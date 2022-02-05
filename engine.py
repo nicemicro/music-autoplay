@@ -313,7 +313,7 @@ def latest_songs(playlist, timeframe=30*60, points=None):
         listend = listend.reset_index().sort_values("index", ascending=False)
         result = pd.concat([listend.reset_index(drop=True), points], axis=1)[[ \
             "Artist", "Album", "Title", "Multiplier"]]
-        return result[(result["Multiplier"]>0)]
+        return result[(result["Multiplier"]>0) & (result["Artist"].notna())]
 
 def cumul_similar(songlist, playlist, timeframe=30*60, points=None):
     if points is None:
@@ -337,6 +337,8 @@ def cumul_similar(songlist, playlist, timeframe=30*60, points=None):
         song = msg["index"]
         collected.append(song)
         if not similars.index.empty:
+            similars["Point"] = similars["Point"] / similars["Point"].sum() \
+                * latests.at[song, "Multiplier"]
             all_similars[song] = similars
         if len(collected) == len(latests.index):
             break
