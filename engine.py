@@ -59,7 +59,7 @@ def load_songlist(filename='songlist.csv'):
     return songlist, artists, albums
 
 def find_similar(songlist, artist, title, album="", timeframe=30*60,
-                 points=[10, 5, 2, 1, 1]):
+                 points=None):
     """
     Finds the songs in 'songlists' played after the song from 'artist' titled
     'title', for the time 'timeframe' (defaults to 30 minutes). Points is a
@@ -68,6 +68,8 @@ def find_similar(songlist, artist, title, album="", timeframe=30*60,
     10 points, the 2nd song played after the searched song gets 5, the third
     gets 2, etc.
     """
+    if points is None:
+        points = [10, 5, 2, 1, 1]
     artist = artist.lower()
     title = title.lower()
     if album == '' or pd.isnull(album):
@@ -82,12 +84,20 @@ def find_similar(songlist, artist, title, album="", timeframe=30*60,
 #            print("Check album title: ", album)
 #            selected_songs = songlist[(songlist['Artist'].str.lower() == artist) &
 #                                      (songlist['Title'].str.lower() == title)]
-    result = [songlist[(songlist['Scrobble time'] > time) &
-                       (songlist['Scrobble time'] < time +
-                        datetime.timedelta(seconds=timeframe))
-                       ].sort_values(by=['Scrobble time']
-                                     ).reset_index(drop=True) for time
-              in selected_songs['Scrobble time']]
+    if timeframe > 0:
+        result = [songlist[(songlist['Scrobble time'] > time) &
+                           (songlist['Scrobble time'] < time +
+                            datetime.timedelta(seconds=timeframe))
+                           ].sort_values(by=['Scrobble time']
+                                         ).reset_index(drop=True) for time
+                  in selected_songs['Scrobble time']]
+    elif timeframe < 0:
+        result = [songlist[(songlist['Scrobble time'] < time) &
+                           (songlist['Scrobble time'] > time +
+                            datetime.timedelta(seconds=timeframe))
+                           ].sort_values(by=['Scrobble time']
+                                         ).reset_index(drop=True) for time
+                  in selected_songs['Scrobble time']]
     if not result:
         return pd.DataFrame()
     for i in range(len(result)):
@@ -113,7 +123,7 @@ def find_similar(songlist, artist, title, album="", timeframe=30*60,
     return result_sum.reset_index(drop=True)
 
 def find_similar_artist(songlist, artist, timeframe=30*60,
-                 points=[10, 5, 2, 1, 1]):
+                 points=None):
     """
     Finds the artists in 'songlists' played after any song from 'artist'for the
     time 'timeframe' (defaults to 30 minutes). Points is a list with the points
@@ -121,6 +131,8 @@ def find_similar_artist(songlist, artist, timeframe=30*60,
     which means that the artist played after searched artist gets 10 points,
     the 2nd song played after the current song gets 5, the third gets 2, etc.
     """
+    if points is None:
+        points = [10, 5, 2, 1, 1]
     artist = artist.lower()
     selected_artist = songlist[(songlist['Artist'].str.lower() == artist)]
     result = [songlist[(songlist['Scrobble time'] > time) &
@@ -288,7 +300,50 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
                                  columns=['Place', 'Trial', 'Date added']),
                     sort=False), sort=False).reset_index(drop=True)
     return playlist
+#%%
+def latest_songs(playlist, timeframe=30*60, points=None):
+        if points is None:
+            points = [10, 5, 2, 1, 1]
+        points = pd.DataFrame(points, columns=["Multiplier"])
+        if len(playlist.index) == 0:
+            return pd.DataFrame([])
+        time = playlist.at[playlist.index[-1], "Date added"] - \
+            datetime.timedelta(seconds=timeframe)
+        listend = playlist[(playlist["Date added"]>time)]
+        listend = listend.reset_index().sort_values("index", ascending=False)
+        result = pd.concat([listend.reset_index(drop=True), points], axis=1)[[ \
+            "Artist", "Album", "Title", "Multiplier"]]
+        return result[(result["Multiplier"]>0)]
 
+def cumul_similar(songlist, playlist, timeframe=30*60, points=None):
+    if points is None:
+        points = [10, 5, 2]
+    latests = latest_songs(playlist, timeframe, points)
+    songqueue = mp.Queue()
+    processes = {}
+    for song in latests.index:
+        processes[song] = mp.Process(target=similars_parallel, args=
+                                     (songqueue, song, songlist,
+                                      latests.at[song, 'Artist'],
+                                      latests.at[song, 'Title'],
+                                      latests.at[song, 'Album'],
+                                      timeframe, points))
+        processes[song].start()
+    collected = []
+    all_similars = {}
+    while True:
+        msg = songqueue.get()
+        similars = msg["res"]
+        song = msg["index"]
+        collected.append(song)
+        if not similars.index.empty:
+            all_similars[song] = similars
+        if len(collected) == len(latests.index):
+            break
+    for proc in processes:
+        processes[proc].join()
+    return all_similars
+#%%
 def playlist_from_songs(songlist, playlist, datetime):
     """
     Gets the songs from the songlist that have been scrobbled after the last
