@@ -107,7 +107,7 @@ def find_similar(songlist, artist, title, album="", timeframe=30*60,
         {'Scrobble time': ['max'], 'Point': ['sum']}).reset_index().set_axis(
         ['Artist', 'Album', 'Title', 'Played last', 'Point'], axis=1,
         inplace=False)
-    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point', 
+    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point',
         'Played last'],
         ascending=[False, False])
     return result_sum.reset_index(drop=True)
@@ -146,7 +146,7 @@ def find_similar_artist(songlist, artist, timeframe=30*60,
     result_sum = result_sum.set_axis(
         ['Artist', 'Played last', 'Point'], axis=1,
         inplace=False)
-    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point', 
+    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point',
         'Played last'],
         ascending=[False, False])
     return result_sum.reset_index(drop=True)
@@ -154,7 +154,7 @@ def find_similar_artist(songlist, artist, timeframe=30*60,
 def choose_song(similars, playlist, **kwargs):
     same_artist = 1
     try_artist = 15
-    try_old_song = 5    
+    try_old_song = 5
     perc_inc = 2
     base_percent = 30
     for key, value in kwargs.items():
@@ -227,7 +227,7 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
     points = [10, 5, 2, 1, 1]
     for key, value in kwargs.items():
         if key == 'base_percent':
-            base_percent = min(100, max(1, value))        
+            base_percent = min(100, max(1, value))
         elif key == 'timeframe':
             timeframe = value
         elif key == 'points':
@@ -255,7 +255,7 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
                     'Scrobble time'].count().reset_index().sort_values(by=[
                     'Scrobble time'], ascending=[False]).reset_index(drop=True)
             else:
-                artist_songs = songlist[(songlist['Artist'].str.lower() == 
+                artist_songs = songlist[(songlist['Artist'].str.lower() ==
                                          artist)]
                 all_songs = artist_songs.groupby(['Artist', 'Album', 'Title'])[
                     'Scrobble time'].count().reset_index().sort_values(by=[
@@ -393,7 +393,7 @@ def find_not_played(songlist, playlist, artist='', album='', **kwargs):
     Finds the songs of the artist that aren't in the playlist.
     
     Optional arguments:
-    sort_by: defines how the output should be sorted. 
+    sort_by: defines how the output should be sorted.
         "plays": it will be ordered based on the how many times the song has
             been played (descending) (default if no sort_by value is defined).
         "rarely": ordered by how many times the song has been playerd
@@ -532,7 +532,7 @@ def load_csv(filename="data"):
                            parse_dates=["Scrobble time"])
     artists = pd.read_csv(filename + "_artists.csv", sep=",", names=["Artist"])
     albums = pd.read_csv(filename + "_albums.csv", sep=",",
-                         names=["Artist", "Albums"]) 
+                         names=["Artist", "Albums"])
     playlist = pd.read_csv(filename + "_playlist.csv", sep=",",
                            names=["Artist", "Album", "Title", "Date added",
                                   "Place", "Trial"],
