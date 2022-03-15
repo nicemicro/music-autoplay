@@ -9,6 +9,7 @@ import datetime
 import random as rnd
 import pickle as pc
 import pandas as pd
+import numpy as np
 import multiprocessing as mp
 
 def load_partial(songlist, artists, albums, filename):
@@ -20,7 +21,7 @@ def load_partial(songlist, artists, albums, filename):
                             parse_dates=['Scrobble time'])
     new_songs = new_songs[(new_songs['Scrobble time']).notnull()]
     oldest = new_songs['Scrobble time'].min()
-    songlist = new_songs.append(songlist[(songlist['Scrobble time'] < oldest)]
+    songlist = pd.concat([new_songs, songlist[(songlist['Scrobble time'] < oldest)]]
                                 ).sort_values(by=['Scrobble time'],
                                               ascending=[False]).reset_index(
                                                   drop=True)
@@ -234,12 +235,12 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
             points = value
     if artist != '' and title != '':
         if album == '':
-            album = pd.NaT
+            album = np.NaN
         new_line = pd.DataFrame([[artist, album, title,
                                   datetime.datetime.utcnow()]],
                                 columns=['Artist', 'Album', 'Title',
                                          'Date added'])
-        playlist = playlist.append(new_line, ignore_index=True, sort=False)
+        playlist = pd.concat([playlist, new_line], ignore_index=True, sort=False)
     for song_num in range(length):
         if not playlist.empty:
             last = len(playlist)-1
@@ -267,10 +268,10 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
             while point <= point_target:
                 song_place += 1
                 point += all_songs['Scrobble time'].values[song_place]
-            playlist = playlist.append(pd.DataFrame(
+            playlist = pd.concat([playlist, pd.DataFrame(
                 [[datetime.datetime.utcnow()]], columns=['Date added']
                 ).join(all_songs[song_place:song_place+1][['Artist',
-                'Album', 'Title']].reset_index(drop=True)), sort=False)
+                'Album', 'Title']].reset_index(drop=True))], sort=False)
         else:
             similars = find_similar(songlist, artist, title, album, timeframe,
                                     points)
@@ -281,12 +282,12 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
                 print("    Title: ", title)
                 return playlist
             song_place, trial_num = choose_song(similars, playlist, *kwargs)
-            playlist = playlist.append(similars[song_place:song_place+1]
+            playlist = pd.concat([playlist, similars[song_place:song_place+1]
                 [['Artist', 'Album', 'Title']].reset_index(drop=True).join(
                     pd.DataFrame([[song_place+1, trial_num,
                                    datetime.datetime.utcnow()]],
                                  columns=['Place', 'Trial', 'Date added']),
-                    sort=False), sort=False).reset_index(drop=True)
+                    sort=False)], sort=False).reset_index(drop=True)
     return playlist
 
 def playlist_from_songs(songlist, playlist, datetime):
@@ -366,7 +367,7 @@ def delete_song(playlist, first, last=0):
         last = max(first, last)
     playlist = pd.concat([playlist[0:first], playlist[last+1:]])
     if last+1 in playlist.index:
-        playlist.at[last+1, 'Place'] = pd.NaT
+        playlist.at[last+1, 'Place'] = np.NaN
     return playlist.reset_index(drop=True)
 
 def move_song(playlist, song, place):
@@ -375,11 +376,11 @@ def move_song(playlist, song, place):
     song = min(song, playlist.index.max())
     place = max(place, -1)
     place = min(place, playlist.index.max())
-    playlist.at[song, 'Place'] = pd.NaT
+    playlist.at[song, 'Place'] = np.NaN
     if song+1 in playlist.index:
-        playlist.at[song+1, 'Place'] = pd.NaT
+        playlist.at[song+1, 'Place'] = np.NaN
     if place+1 in playlist.index:
-        playlist.at[place+1, 'Place'] = pd.NaT
+        playlist.at[place+1, 'Place'] = np.NaN
     if place < song:
         playlist = pd.concat([playlist[0:place+1], playlist[song:song+1],
                               playlist[place+1:song], playlist[song+1:]])
