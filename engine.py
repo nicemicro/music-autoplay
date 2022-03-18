@@ -8,35 +8,39 @@ Created on Tue May  7 21:56:39 2019
 import datetime
 import random as rnd
 import pickle as pc
-import pandas as pd
 import multiprocessing as mp
+import pandas as pd
+import numpy as np
+
 
 def load_partial(songlist, artists, albums, filename):
     """
     Loads the newest scrobbles and adds it to the current songlist.
     """
     new_songs = pd.read_csv(filename, delimiter=',', header=None,
-                            names=['Artist', 'Album', 'Title', 'Scrobble time'],
-                            parse_dates=['Scrobble time'])
+            names=['Artist', 'Album', 'Title', 'Scrobble time'],
+            parse_dates=['Scrobble time'])
     new_songs = new_songs[(new_songs['Scrobble time']).notnull()]
     oldest = new_songs['Scrobble time'].min()
-    songlist = new_songs.append(songlist[(songlist['Scrobble time'] < oldest)]
-                                ).sort_values(by=['Scrobble time'],
-                                              ascending=[False]).reset_index(
-                                                  drop=True)
+    songlist = pd.concat([new_songs,
+                         songlist[(songlist['Scrobble time'] < oldest)]]
+                         ).sort_values(by=['Scrobble time'],
+                                ascending=[False]).reset_index(drop=True)
     songlist_lowercase = songlist.copy()
     songlist_lowercase["artist_low"] = songlist_lowercase["Artist"].str.lower()
-    all_artists = songlist_lowercase.groupby("artist_low").agg({"Artist": "max"})
+    all_artists = songlist_lowercase.groupby("artist_low").agg(
+            {"Artist": "max"})
     all_artists = all_artists.reset_index(drop=False)
     old_artists = artists.copy()
     old_artists["artist_low"] = old_artists["Artist"].str.lower()
     artists = pd.merge(old_artists, all_artists, how="outer", on="artist_low")
     artists.columns = ["Artist2", "artist_low", "Artist"]
-    albums = songlist.drop_duplicates(subset=['Artist', 'Album']).drop( \
+    albums = songlist.drop_duplicates(subset=['Artist', 'Album']).drop(
         'Title', 1).drop('Scrobble time', 1)
     #TODO
     #albums = (Need to do something to conserve album order)
     return songlist, artists[['Artist']], albums
+
 
 def load_songlist(filename='songlist.csv'):
     """
@@ -57,6 +61,7 @@ def load_songlist(filename='songlist.csv'):
                                                               1)
     print('Albums aquired')
     return songlist, artists, albums
+
 
 def find_similar(songlist, artist, title, album="", timeframe=30*60,
                  points=None):
@@ -117,7 +122,7 @@ def find_similar(songlist, artist, title, album="", timeframe=30*60,
         {'Scrobble time': ['max'], 'Point': ['sum']}).reset_index().set_axis(
         ['Artist', 'Album', 'Title', 'Played last', 'Point'], axis=1,
         inplace=False)
-    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point', 
+    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point',
         'Played last'],
         ascending=[False, False])
     return result_sum.reset_index(drop=True)
@@ -158,7 +163,7 @@ def find_similar_artist(songlist, artist, timeframe=30*60,
     result_sum = result_sum.set_axis(
         ['Artist', 'Played last', 'Point'], axis=1,
         inplace=False)
-    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point', 
+    result_sum = result_sum[(result_sum['Point']>0)].sort_values(by=['Point',
         'Played last'],
         ascending=[False, False])
     return result_sum.reset_index(drop=True)
@@ -166,7 +171,7 @@ def find_similar_artist(songlist, artist, timeframe=30*60,
 def choose_song(similars, playlist, **kwargs):
     same_artist = 1
     try_artist = 15
-    try_old_song = 5    
+    try_old_song = 5
     perc_inc = 2
     base_percent = 30
     for key, value in kwargs.items():
@@ -239,19 +244,19 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
     points = [10, 5, 2, 1, 1]
     for key, value in kwargs.items():
         if key == 'base_percent':
-            base_percent = min(100, max(1, value))        
+            base_percent = min(100, max(1, value))
         elif key == 'timeframe':
             timeframe = value
         elif key == 'points':
             points = value
     if artist != '' and title != '':
         if album == '':
-            album = pd.NaT
+            album = np.NaN
         new_line = pd.DataFrame([[artist, album, title,
                                   datetime.datetime.utcnow()]],
                                 columns=['Artist', 'Album', 'Title',
                                          'Date added'])
-        playlist = playlist.append(new_line, ignore_index=True, sort=False)
+        playlist = pd.concat([playlist, new_line], ignore_index=True, sort=False)
     for song_num in range(length):
         if not playlist.empty:
             last = len(playlist)-1
@@ -267,7 +272,7 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
                     'Scrobble time'].count().reset_index().sort_values(by=[
                     'Scrobble time'], ascending=[False]).reset_index(drop=True)
             else:
-                artist_songs = songlist[(songlist['Artist'].str.lower() == 
+                artist_songs = songlist[(songlist['Artist'].str.lower() ==
                                          artist)]
                 all_songs = artist_songs.groupby(['Artist', 'Album', 'Title'])[
                     'Scrobble time'].count().reset_index().sort_values(by=[
@@ -279,10 +284,10 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
             while point <= point_target:
                 song_place += 1
                 point += all_songs['Scrobble time'].values[song_place]
-            playlist = playlist.append(pd.DataFrame(
+            playlist = pd.concat([playlist, pd.DataFrame(
                 [[datetime.datetime.utcnow()]], columns=['Date added']
                 ).join(all_songs[song_place:song_place+1][['Artist',
-                'Album', 'Title']].reset_index(drop=True)), sort=False)
+                'Album', 'Title']].reset_index(drop=True))], sort=False)
         else:
             similars = find_similar(songlist, artist, title, album, timeframe,
                                     points)
@@ -293,12 +298,12 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
                 print("    Title: ", title)
                 return playlist
             song_place, trial_num = choose_song(similars, playlist, *kwargs)
-            playlist = playlist.append(similars[song_place:song_place+1]
+            playlist = pd.concat([playlist, similars[song_place:song_place+1]
                 [['Artist', 'Album', 'Title']].reset_index(drop=True).join(
                     pd.DataFrame([[song_place+1, trial_num,
                                    datetime.datetime.utcnow()]],
                                  columns=['Place', 'Trial', 'Date added']),
-                    sort=False), sort=False).reset_index(drop=True)
+                    sort=False)], sort=False).reset_index(drop=True)
     return playlist
 #%%
 def latest_songs(playlist, timeframe=30*60, points=None):
@@ -438,7 +443,7 @@ def delete_song(playlist, first, last=0):
         last = max(first, last)
     playlist = pd.concat([playlist[0:first], playlist[last+1:]])
     if last+1 in playlist.index:
-        playlist.at[last+1, 'Place'] = pd.NaT
+        playlist.at[last+1, 'Place'] = np.NaN
     return playlist.reset_index(drop=True)
 
 def move_song(playlist, song, place):
@@ -447,11 +452,11 @@ def move_song(playlist, song, place):
     song = min(song, playlist.index.max())
     place = max(place, -1)
     place = min(place, playlist.index.max())
-    playlist.at[song, 'Place'] = pd.NaT
+    playlist.at[song, 'Place'] = np.NaN
     if song+1 in playlist.index:
-        playlist.at[song+1, 'Place'] = pd.NaT
+        playlist.at[song+1, 'Place'] = np.NaN
     if place+1 in playlist.index:
-        playlist.at[place+1, 'Place'] = pd.NaT
+        playlist.at[place+1, 'Place'] = np.NaN
     if place < song:
         playlist = pd.concat([playlist[0:place+1], playlist[song:song+1],
                               playlist[place+1:song], playlist[song+1:]])
@@ -465,7 +470,7 @@ def find_not_played(songlist, playlist, artist='', album='', **kwargs):
     Finds the songs of the artist that aren't in the playlist.
     
     Optional arguments:
-    sort_by: defines how the output should be sorted. 
+    sort_by: defines how the output should be sorted.
         "plays": it will be ordered based on the how many times the song has
             been played (descending) (default if no sort_by value is defined).
         "rarely": ordered by how many times the song has been playerd
@@ -631,7 +636,7 @@ def load_csv(filename="data"):
                            parse_dates=["Scrobble time"])
     artists = pd.read_csv(filename + "_artists.csv", sep=",", names=["Artist"])
     albums = pd.read_csv(filename + "_albums.csv", sep=",",
-                         names=["Artist", "Albums"]) 
+                         names=["Artist", "Albums"])
     playlist = pd.read_csv(filename + "_playlist.csv", sep=",",
                            names=["Artist", "Album", "Title", "Date added",
                                   "Place", "Trial"],
