@@ -1,3 +1,4 @@
 *.pckl
 *.csv
+testresult.txt
 __pycache__

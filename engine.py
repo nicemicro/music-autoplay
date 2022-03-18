@@ -303,7 +303,7 @@ def generate_list(playlist, songlist, length=5, artist='', title='', album='',
 #%%
 def latest_songs(playlist, timeframe=30*60, points=None):
         if points is None:
-            points = [10, 5, 2, 1, 1]
+            points = [1, 2, 5, 10, 10]
         points = pd.DataFrame(points, columns=["Multiplier"])
         if len(playlist.index) == 0:
             return pd.DataFrame([])
@@ -317,7 +317,7 @@ def latest_songs(playlist, timeframe=30*60, points=None):
 
 def cumul_similar(songlist, playlist, timeframe=30*60, points=None):
     if points is None:
-        points = [10, 5, 2]
+        points = [1, 5, 10]
     latests = latest_songs(playlist, timeframe, points)
     songqueue = mp.Queue()
     processes = {}
@@ -337,14 +337,29 @@ def cumul_similar(songlist, playlist, timeframe=30*60, points=None):
         song = msg["index"]
         collected.append(song)
         if not similars.index.empty:
-            similars["Point"] = similars["Point"] / similars["Point"].sum() \
-                * latests.at[song, "Multiplier"]
+            similars[f"P{song}"] = similars["Point"]
             all_similars[song] = similars
         if len(collected) == len(latests.index):
             break
     for proc in processes:
         processes[proc].join()
-    return all_similars
+    result = all_similars[0][["Artist", "Album", "Title", "P0"]]
+    for song, similars in all_similars.items():
+        if song == 0:
+            continue
+        result = pd.merge(result, similars[["Artist", "Album", "Title", f"P{song}"]],
+                          how="outer", on=["Artist", "Album", "Title"])
+    result.loc[result["P0"].isnull(), "P0"] = 0
+    result["SumP"] = result["P0"] / result["P0"].max()
+    for song, similars in all_similars.items():
+        if song == 0:
+            continue
+        result.loc[result[f"P{song}"].isnull(), f"P{song}"] = 0
+        result["SumP"] = result["SumP"] * ((result[f"P{song}"]
+                                            + latests.at[song, "Multiplier"])
+                                           / result[f"P{song}"].max())
+    result["SumP"] = 100 * result["SumP"] / result["SumP"].sum()
+    return result
 #%%
 def playlist_from_songs(songlist, playlist, datetime):
     """
