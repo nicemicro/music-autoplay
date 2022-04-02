@@ -16,7 +16,7 @@ from typing import Union, Optional, Literal
 
 def load_partial(
     songlist: pd.DataFrame, artists: pd.DataFrame, albums: pd.DataFrame, filename: str
-) -> tuple[pd.DataFrame, pd.Dataframe, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Loads the newest scrobbles and adds it to the current songlist.
     """
@@ -913,7 +913,7 @@ def save_data(
 
 def load_data(
     filename: str = "data",
-) -> tuple[pd.DataFrame, pd.Dataframe, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Loads the songlist and the playlist from a pickle and extracts artists
     and albums.
@@ -930,7 +930,7 @@ def load_data(
 
 def load_csv(
     filename: str = "data",
-) -> tuple[pd.DataFrame, pd.Dataframe, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Loads the data from CSV files."""
     songlist = pd.read_csv(
         filename + "_songlist.csv",
