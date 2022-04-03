@@ -7,6 +7,7 @@ Created on Sun Oct  3 20:35:00 2021
 """
 
 import pandas as pd
+import numpy as np
 import engine as e
 from datetime import datetime
 from mpd_wrapper import MPD
@@ -147,13 +148,13 @@ class DataBases:
             #print("    Checked suggestions for after ",
             #      self.suggestion[-1]["artist"],
             #      " - ", self.suggestion[-1]["title"])
-            #print("       remained in suggestionlist: ", len(suggestionlist.index))
+            #p#rint("       remained in suggestionlist: ", len(suggestionlist.index))
             #if len(suggestionlist.index) > 0:
-            #    print(suggestionlist[0:5][["Artist", "Title", "Point"]])
+                #print(suggestionlist[0:5][["Artist", "Title", "Point"]])
             #print("\nPlaylist last elements:")
             #print(self.playlist[-2:][["Artist", "Title"]])
             if len(suggestionlist.index) == 0:
-        #        print("suggestion list empty, popping...")
+                #print("suggestion list empty, popping...")
                 self.suggestion.pop(-1)
                 continue
             place, trial = e.choose_song(suggestionlist, self.playlist)      
@@ -194,13 +195,14 @@ class DataBases:
                 self.suggestion[-1]["suggestions"].empty:
             currsugg = {"index": lastind, "artist": artist,
                         "album": album, "title": title}
-            currsugg["suggestions"] = e.find_similar(self.songlist, artist,
-                                                     title, album)
+            #currsugg["suggestions"] = e.find_similar(self.songlist, artist,
+            #                                         title, album)
+            currsugg["suggestions"] = e.cumul_similar(self.songlist, self.playlist)
             self.suggestion.append(currsugg)
-        #    print(f"suggestion added for {artist} - {title}")
+            #print(f"suggestion added for {artist} - {title}")
             if len(self.suggestion) > 10:
                 self.suggestion.pop(0)
-        #        print("suggestion list too long: first element popped")
+                #print("suggestion list too long: first element popped")
         #print("----------------------------------")
         #print("current suggestion list:")
         #for i, a, t in zip([line["index"] for line in self.suggestion],
@@ -271,7 +273,7 @@ class DataBases:
         filename, artist, album, title = \
             filedata[0], filedata[1], filedata[2], filedata[3]
         new_line = pd.DataFrame([[artist, album, title, datetime.utcnow(),
-                                  -1, -1]],
+                                  np.NaN, np.NaN]],
                                 columns=["Artist", "Album", "Title",
                                          "Date added", "Place", "Trial"])
         self.playlist = pd.concat([self.playlist, new_line]).reset_index(drop=True)

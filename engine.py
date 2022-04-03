@@ -11,7 +11,8 @@ import pickle as pc
 import multiprocessing as mp
 import pandas as pd
 import numpy as np
-from typing import Union, Optional, Literal
+import numpy.typing as npt
+from typing import Union, Optional
 
 
 def load_partial(
@@ -410,9 +411,12 @@ def generate_list(
 
 
 #%%
-def latest_songs(playlist, timeframe=30 * 60, points=None):
+def latest_songs(
+    playlist: pd.DataFrame, timeframe: int = 30 * 60, points: Optional[list[int]] = None
+) -> pd.DataFrame:
+    """Returns a list of the latest shongs from the playlist."""
     if points is None:
-        points = [1, 2, 5, 10, 10]
+        points = [10, 5, 2, 1, 1]
     points = pd.DataFrame(points, columns=["Multiplier"])
     if len(playlist.index) == 0:
         return pd.DataFrame([])
@@ -427,12 +431,20 @@ def latest_songs(playlist, timeframe=30 * 60, points=None):
     return result[(result["Multiplier"] > 0) & (result["Artist"].notna())]
 
 
-def cumul_similar(songlist, playlist, timeframe=30 * 60, points=None):
+def cumul_similar(
+    songlist: pd.DataFrame,
+    playlist: pd.DataFrame,
+    timeframe: int = 30 * 60,
+    points: Optional[npt.NDArray[np.int32]] = None,
+    show_all: bool = False
+):
+    """Calculates the similarity points based on the cumulative points from
+    multuiple base songs."""
     if points is None:
-        points = [1, 5, 10]
-    latests = latest_songs(playlist, timeframe, points)
-    songqueue = mp.Queue()
-    processes = {}
+        points = np.array([[10, 0, 0], [8, 2, 0], [5, 3, 1]], dtype=np.int32)
+    latests = latest_songs(playlist, timeframe, list(points.sum(axis=1)))
+    songqueue: mp.Queue = mp.Queue()
+    processes: dict[int, mp.Process] = {}
     for song in latests.index:
         processes[song] = mp.Process(
             target=similars_parallel,
@@ -448,41 +460,50 @@ def cumul_similar(songlist, playlist, timeframe=30 * 60, points=None):
             ),
         )
         processes[song].start()
-    collected = []
-    all_similars = {}
-    while True:
-        msg = songqueue.get()
+    collected: list[int] = []
+    all_similars: dict[int, pd.DataFrame] = {}
+    while len(collected) < len(latests.index):
+        msg: dict[str, Union[int, pd.DataFrame]] = songqueue.get()
         similars = msg["res"]
         song = msg["index"]
+        assert isinstance(similars, pd.DataFrame)
+        assert isinstance(song, int)
         collected.append(song)
         if not similars.index.empty:
-            similars[f"P{song}"] = similars["Point"]
+            similars[f"P{song}"] = similars["Point"] / similars["Point"].sum() * 100
+            similars[f"O{song}"] = similars.index
             all_similars[song] = similars
-        if len(collected) == len(latests.index):
-            break
-    for proc in processes:
-        processes[proc].join()
-    result = all_similars[0][["Artist", "Album", "Title", "P0"]]
+        else:
+            all_similars[song] = pd.DataFrame(
+                [["", "", "", 0, 0]], columns=["Artist", "Album", "Title", "P0", "O0"]
+            )
+    for proc in processes.values():
+        proc.join()
+    result = all_similars[0][["Artist", "Album", "Title", "P0", "O0"]]
     for song, similars in all_similars.items():
         if song == 0:
             continue
         result = pd.merge(
             result,
-            similars[["Artist", "Album", "Title", f"P{song}"]],
+            similars[["Artist", "Album", "Title", f"P{song}", f"O{song}"]],
             how="outer",
             on=["Artist", "Album", "Title"],
         )
-    result.loc[result["P0"].isnull(), "P0"] = 0
-    result["SumP"] = result["P0"] / result["P0"].max()
-    for song, similars in all_similars.items():
-        if song == 0:
-            continue
-        result.loc[result[f"P{song}"].isnull(), f"P{song}"] = 0
-        result["SumP"] = result["SumP"] * (
-            (result[f"P{song}"] + latests.at[song, "Multiplier"])
-            / result[f"P{song}"].max()
-        )
-    result["SumP"] = 100 * result["SumP"] / result["SumP"].sum()
+    for i in latests.index:
+        result.loc[result[f"P{i}"].isnull(), f"P{i}"] = 0
+    result["Sum"] = 0
+    for i in latests.index:
+        for j in latests.index:
+            if points[i, j] == 0:
+                continue
+            result[f"PC{i}-{j}"] = (
+                np.sqrt(result[f"P{i}"] * result[f"P{j}"]) * points[i, j]
+            )
+            result["Sum"] = result["Sum"] + result[f"PC{i}-{j}"]
+    result = result.sort_values(["Sum"], ascending=False).reset_index(drop=True)
+    result["Point"] = result["Sum"] / result["Sum"].sum() * 100
+    if not show_all:
+        result = result[["Artist", "Album", "Title", "Point"]]
     return result
 
 
