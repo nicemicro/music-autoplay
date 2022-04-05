@@ -109,7 +109,9 @@ def find_similar(
         album = album.lower()
         selected_songs = songlist[
             (songlist["Artist"].str.lower() == artist)
-            & (songlist["Album"].str.lower() == album)
+            & ((songlist["Album"].str.lower() == album)
+                | (songlist["Album"] == "")
+                | (songlist["Album"].isna()))
             & (songlist["Title"].str.lower() == title)
         ]
     #        if selected_songs.empty:
@@ -475,7 +477,7 @@ def cumul_similar(
             all_similars[song] = similars
         else:
             all_similars[song] = pd.DataFrame(
-                [["", "", "", 0, 0]], columns=["Artist", "Album", "Title", "P0", "O0"]
+                [["", "", "", 0, 0]], columns=["Artist", "Album", "Title", f"P{song}", f"O{song}"]
             )
     for proc in processes.values():
         proc.join()
@@ -502,6 +504,7 @@ def cumul_similar(
             result["Sum"] = result["Sum"] + result[f"PC{i}-{j}"]
     result = result.sort_values(["Sum"], ascending=False).reset_index(drop=True)
     result["Point"] = result["Sum"] / result["Sum"].sum() * 100
+    result = result[(result["Point"] > 0)]
     if not show_all:
         result = result[["Artist", "Album", "Title", "Point"]]
     return result

@@ -44,7 +44,9 @@ class DataBases:
             s_strings.append(word)
         for word in [w for w in artist.split(" ") if len(w) > 2]:
             s_strings.append("artist")
-            s_strings.append(word)        
+            s_strings.append(word)
+        if len(s_strings) == 0:
+            return pd.DataFrame()
         s_strings2 = s_strings.copy()
         if len(s_strings) > 30:
             s_strings = s_strings[0:30]
@@ -148,7 +150,7 @@ class DataBases:
             #print("    Checked suggestions for after ",
             #      self.suggestion[-1]["artist"],
             #      " - ", self.suggestion[-1]["title"])
-            #p#rint("       remained in suggestionlist: ", len(suggestionlist.index))
+            #print("       remained in suggestionlist: ", len(suggestionlist.index))
             #if len(suggestionlist.index) > 0:
                 #print(suggestionlist[0:5][["Artist", "Title", "Point"]])
             #print("\nPlaylist last elements:")
@@ -167,7 +169,10 @@ class DataBases:
             if self.suggestion[-1]["suggestions"].empty:
                 self.suggestion.pop(-1)
         if song.empty:
-            return song
+            lastsong = len(self.playlist) - 1
+            song = self.search_song(self.playlist.at[lastsong, "Artist"],
+                                    self.playlist.at[lastsong, "Album"],
+                                    self.playlist.at[lastsong, "Title"])
         newline = (song[0:1][["artist", "album", "title"]]) \
             .rename({"artist": "Artist", "album": "Album",
                      "title": "Title"}, axis="columns")
