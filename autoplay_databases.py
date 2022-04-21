@@ -142,32 +142,33 @@ class DataBases:
         new_list = self.mergesongdata(new_list, songs)
         return new_list
     
-    def make_suggestion(self):
+    def make_suggestion(self) -> pd.DataFrame:
         song = pd.DataFrame([])
-        #print("-----------------------\n make_suggestion")
-        while song.empty and self.suggestion:
-            suggestionlist = self.suggestion[-1]["suggestions"]
-            #print("    Checked suggestions for after ",
-            #      self.suggestion[-1]["artist"],
-            #      " - ", self.suggestion[-1]["title"])
-            #print("       remained in suggestionlist: ", len(suggestionlist.index))
-            #if len(suggestionlist.index) > 0:
-                #print(suggestionlist[0:5][["Artist", "Title", "Point"]])
+        index: int = len(self.suggestion) - 1
+        print("-----------------------\n make_suggestion")
+        suggestionlist = pd.DataFrame([])
+        while song.empty and index >= 0:
+            suggestionlist = self.suggestion[index]["suggestions"]
+            print("  Checked suggestions for after ",
+                  self.suggestion[index]["artist"],
+                  " - ", self.suggestion[index]["title"],
+                  f" index: {index}")
+            print(f"    remained in suggestionlist: {len(suggestionlist)}")
+            if len(suggestionlist.index) > 0:
+                print(suggestionlist[["Artist", "Title", "Point", "Place", "Last"]].head())
             #print("\nPlaylist last elements:")
             #print(self.playlist[-2:][["Artist", "Title"]])
             if len(suggestionlist.index) == 0:
-                #print("suggestion list empty, popping...")
-                self.suggestion.pop(-1)
+                print("    suggestion list empty, index decremented")
+                index -= 1
                 continue
             place, trial = e.choose_song(suggestionlist, self.playlist)      
             song = self.search_song(suggestionlist.at[place, "Artist"],
                                     suggestionlist.at[place, "Album"],
                                     suggestionlist.at[place, "Title"])
-            #print(f"selected from list:  {place}")
-            self.suggestion[-1]["suggestions"] = \
+            print(f"  selected from list:  {place}")
+            self.suggestion[index]["suggestions"] = \
                 suggestionlist.drop(place).reset_index(drop=True)
-            if self.suggestion[-1]["suggestions"].empty:
-                self.suggestion.pop(-1)
         if song.empty:
             lastsong = len(self.playlist) - 1
             song = self.search_song(self.playlist.at[lastsong, "Artist"],
@@ -176,44 +177,51 @@ class DataBases:
         newline = (song[0:1][["artist", "album", "title"]]) \
             .rename({"artist": "Artist", "album": "Album",
                      "title": "Title"}, axis="columns")
+        if not song.empty:
+            newline["Place"] = suggestionlist.at[place, "Place"]
+            newline["Last"] = suggestionlist.at[place, "Last"]
+            newline["Trial"] = trial
         newline = newline.rename({0: self.playlist.index[-1]+1},
                                  axis="index")
         newline["Date added"] = datetime.utcnow()
-        newline["Place"] = place + 1
-        newline["Trial"] = trial
         self.playlist = pd.concat([self.playlist, newline])
-        #print("\nSelected song: ", song.at[0, "artist"], song.at[0, "title"])
+        print("  Selected song: ")
+        print(newline)
         #print("--------------------------")
         #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
         #print("========================\n")
         return song
     
-    def suggest_song(self):
+    def suggest_song(self) -> pd.DataFrame:
         lastind = self.playlist.index[-1]
         artist = self.playlist.at[lastind, "Artist"]
         album = self.playlist.at[lastind, "Album"]
         title = self.playlist.at[lastind, "Title"]
-        #print(f"  suggest_song after {artist}, {album}, {title}")
-        if not self.suggestion or artist != self.suggestion[-1]["artist"] or \
-                album != self.suggestion[-1]["album"] or \
-                title != self.suggestion[-1]["title"] or \
-                self.suggestion[-1]["suggestions"].empty:
+        print("============================")
+        print(f"suggest_song after {artist}, {album}, {title}")
+        if (
+            not self.suggestion or
+            artist != self.suggestion[-1]["artist"] or
+            album != self.suggestion[-1]["album"] or
+            title != self.suggestion[-1]["title"]
+        ):
             currsugg = {"index": lastind, "artist": artist,
                         "album": album, "title": title}
             #currsugg["suggestions"] = e.find_similar(self.songlist, artist,
             #                                         title, album)
             currsugg["suggestions"] = e.cumul_similar(self.songlist, self.playlist)
             self.suggestion.append(currsugg)
-            #print(f"suggestion added for {artist} - {title}")
+            print(f"      (info) suggestion list added for {artist} - {title}")
             if len(self.suggestion) > 10:
                 self.suggestion.pop(0)
                 #print("suggestion list too long: first element popped")
         #print("----------------------------------")
-        #print("current suggestion list:")
-        #for i, a, t in zip([line["index"] for line in self.suggestion],
-        #                [line["artist"] for line in self.suggestion],
-        #                [line["title"] for line in self.suggestion]):
-        #    print(f"    {i}. {a} - {t}")
+        print("current suggestion list:")
+        for i, a, t, l in zip([line["index"] for line in self.suggestion],
+                        [line["artist"] for line in self.suggestion],
+                        [line["title"] for line in self.suggestion],
+                        [len(line["suggestions"]) for line in self.suggestion]):
+            print(f"    {i}. {a} - {t} (sugg: {l} pcs.)")
         return self.make_suggestion()
     
     def search_artist(self, search_string):
@@ -245,8 +253,10 @@ class DataBases:
     def songlist_append(self, artist, album, title):
         return
         # TODO fix this, whatever's wrong with it
-        if (self.songlist.at[0, "artist"].lower() == artist.lower()) and \
-                (self.songlist.at[0, "title"].lower() == title.lower()):
+        if (
+            (self.songlist.at[0, "artist"].lower() == artist.lower()) and 
+            (self.songlist.at[0, "title"].lower() == title.lower())
+        ):
             return
         new_line = pd.DataFrame([[artist, album, title, datetime.utcnow()]],
                                 columns=["Artist", "Album", "Title",

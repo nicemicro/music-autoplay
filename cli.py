@@ -65,11 +65,11 @@ def plist_end(playlist, where=1, debug=False):
                         cut_list.at[i, 'Title'][-5:]
     if debug:
         return cut_list
-    return cut_list[["Artist", "Album", "Title", "Place", "Trial"]]
+    return cut_list[["Artist", "Album", "Title", "Place", "Last", "Trial"]]
 
 def not_played(songlist, playlist, artist='', album='', **kwargs):
     page = 0
-    debug = False;
+    debug = False
     for key, value in kwargs.items():
         if key == 'page':
             page = value

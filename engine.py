@@ -170,8 +170,10 @@ def find_similar(
     )
     result_sum = result_sum[(result_sum["Point"] > 0)].sort_values(
         by=["Point", "Played last"], ascending=[False, False]
-    )
-    return result_sum.reset_index(drop=True)
+    ).reset_index(drop=True)
+    result_sum["Last"] = result_sum.index + 1
+    result_sum["Place"] = result_sum["Last"]
+    return result_sum[["Artist", "Album", "Title", "Point", "Last", "Place"]]
 
 
 def find_similar_artist(
@@ -293,6 +295,7 @@ def generate_list(
     artist: str = "",
     title: str = "",
     album: Union[str, float] = "",
+    cumul_find: bool = False,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -323,13 +326,17 @@ def generate_list(
     base_percent: float = 30
     timeframe: int = 30 * 60
     points: list[int] = [10, 5, 2, 1, 1]
+    cumul_points: npt.NDArray[np.int32] = np.array([[10, 0, 0], [10, 5, 0], [5, 2, 1]])
     for key, value in kwargs.items():
         if key == "base_percent":
             base_percent = min(100, max(1, value))
         elif key == "timeframe":
             timeframe = value
         elif key == "points":
-            points = value
+            if cumul_find:
+                cumul_points = value
+            else:
+                points = value
     if artist != "" and title != "":
         if album == "":
             album = np.NaN
@@ -386,7 +393,10 @@ def generate_list(
                 sort=False,
             )
         else:
-            similars = find_similar(songlist, artist, title, album, timeframe, points)
+            if cumul_find:
+                similars = cumul_similar(songlist, playlist, timeframe, cumul_points)
+            else:
+                similars = find_similar(songlist, artist, title, album, timeframe, points)
             if similars.empty:
                 print("Expanding the playlist failed after:")
                 print("    Artist: ", artist)
@@ -397,19 +407,19 @@ def generate_list(
             playlist = pd.concat(
                 [
                     playlist,
-                    similars[song_place : song_place + 1][["Artist", "Album", "Title"]]
+                    similars[song_place : song_place + 1][["Artist", "Album", "Title", "Place", "Last"]]
                     .reset_index(drop=True)
                     .join(
                         pd.DataFrame(
-                            [[song_place + 1, trial_num, datetime.datetime.utcnow()]],
-                            columns=["Place", "Trial", "Date added"],
+                            [[trial_num, datetime.datetime.utcnow()]],
+                            columns=["Trial", "Date added"],
                         ),
                         sort=False,
                     ),
                 ],
                 sort=False,
             ).reset_index(drop=True)
-    return playlist
+    return playlist[["Artist", "Album", "Title", "Date added", "Place", "Last", "Trial"]]
 
 
 #%%
@@ -473,7 +483,7 @@ def cumul_similar(
         collected.append(song)
         if not similars.index.empty:
             similars[f"P{song}"] = similars["Point"] / similars["Point"].sum() * 100
-            similars[f"O{song}"] = similars.index
+            similars[f"O{song}"] = similars["Place"]
             all_similars[song] = similars
         else:
             all_similars[song] = pd.DataFrame(
@@ -505,8 +515,10 @@ def cumul_similar(
     result = result.sort_values(["Sum"], ascending=False).reset_index(drop=True)
     result["Point"] = result["Sum"] / result["Sum"].sum() * 100
     result = result[(result["Point"] > 0)]
+    result["Place"] = result.index + 1
+    result["Last"] = result["O0"].astype(pd.Int64Dtype())
     if not show_all:
-        result = result[["Artist", "Album", "Title", "Point"]]
+        result = result[["Artist", "Album", "Title", "Point", "Last", "Place"]]
     return result
 
 
@@ -561,7 +573,7 @@ def song_relations(
     if points is None:
         points = [10, 5, 2, 1, 1]
     playlist = playlist.copy()
-    tocheck = playlist[(playlist["Place"]).isnull()].index
+    tocheck = playlist[(playlist["Last"]).isnull()].index
     tocheck = tocheck[(tocheck > first)]
     if len(tocheck) == 0:
         return playlist
@@ -617,8 +629,10 @@ def song_relations(
                         == playlist.at[song, "Title"].lower()
                     )
                 ]
-            if not similars.index.empty:
-                playlist.at[song, "Place"] = similars.index[0] + 1
+            if similars.index.empty:
+                playlist.at[song, "Last"] = 0
+            else:
+                playlist.at[song, "Last"] = similars["Last"].iloc[0]
         if len(collected) == len(tocheck):
             break
     for proc in processes:
@@ -637,6 +651,7 @@ def delete_song(playlist: pd.DataFrame, first: int, last: int = 0) -> pd.DataFra
     playlist = pd.concat([playlist[0:first], playlist[last + 1 :]])
     if last + 1 in playlist.index:
         playlist.at[last + 1, "Place"] = np.NaN
+        playlist.at[last + 1, "Last"] = np.NaN
     return playlist.reset_index(drop=True)
 
 
@@ -649,8 +664,10 @@ def move_song(playlist: pd.DataFrame, song: int, place: int = 0) -> pd.DataFrame
     playlist.at[song, "Place"] = np.NaN
     if song + 1 in playlist.index:
         playlist.at[song + 1, "Place"] = np.NaN
+        playlist.at[song + 1, "Last"] = np.NaN
     if place + 1 in playlist.index:
         playlist.at[place + 1, "Place"] = np.NaN
+        playlist.at[place + 1, "Last"] = np.NaN
     if place < song:
         playlist = pd.concat(
             [
@@ -967,8 +984,8 @@ def load_csv(
     playlist = pd.read_csv(
         filename + "_playlist.csv",
         sep=",",
-        names=["Artist", "Album", "Title", "Date added", "Place", "Trial"],
+        names=["Artist", "Album", "Title", "Date added", "Place", "Last", "Trial"],
         parse_dates=["Date added"],
-        dtype={"Place": "Int32", "Trial": "Int32"},
+        dtype={"Place": pd.Int64Dtype(), "Trial": pd.Int64Dtype(), "Last": pd.Int64Dtype()},
     )
     return songlist, artists, albums, playlist
