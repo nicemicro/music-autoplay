@@ -662,6 +662,7 @@ def move_song(playlist: pd.DataFrame, song: int, place: int = 0) -> pd.DataFrame
     place = max(place, -1)
     place = min(place, playlist.index.max())
     playlist.at[song, "Place"] = np.NaN
+    playlist.at[song, "Last"] = np.NaN
     if song + 1 in playlist.index:
         playlist.at[song + 1, "Place"] = np.NaN
         playlist.at[song + 1, "Last"] = np.NaN
