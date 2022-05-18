@@ -252,8 +252,12 @@ def choose_song(
             base_percent = min(100, max(1, value))
     if similars.empty:
         return -1, -1
+    if not remove_played(similars, playlist).empty:
+        similars = remove_played(similars, playlist)
     point_sum: float = similars["Point"].sum()
     trial_num: int = 0
+    indices = similars.index
+    similars = similars.reset_index(drop=True)
     ok_artist = False  # is there more artists in the last rows
     ok_song = False  # is this the first time this song is on the list
     percent: float = base_percent
@@ -285,7 +289,7 @@ def choose_song(
         ) < same_artist
         trial_num += 1
         percent += perc_inc
-    return song_place, trial_num
+    return indices[song_place], trial_num
 
 
 def generate_list(
