@@ -689,6 +689,23 @@ def move_song(playlist: pd.DataFrame, song: int, place: int = 0) -> pd.DataFrame
         )
     return playlist.reset_index(drop=True)
 
+def remove_played(
+    list_to_handle: pd.DataFrame,
+    playlist: pd.DataFrame,
+) -> pd.DataFrame:
+    songs_played = playlist[["Artist", "Title"]].copy()
+    list_cpy = list_to_handle.copy()
+    songs_played["Check"] = True
+    songs_played["Artist_low"] = songs_played["Artist"].str.lower()
+    songs_played["Title_low"] = songs_played["Title"].str.lower()
+    songs_played = songs_played[["Check", "Artist_low", "Title_low"]]
+    list_cpy["Artist_low"] = list_cpy["Artist"].str.lower()
+    list_cpy["Title_low"] = list_cpy["Title"].str.lower()
+    merged = pd.merge(
+        list_cpy, songs_played, how="left", on=["Artist_low", "Title_low"]
+    )
+    merged = merged[(merged["Check"].isnull())]
+    return merged[list_to_handle.columns]
 
 #%%
 def find_not_played(
@@ -866,17 +883,8 @@ def find_not_played(
     if artist_songs.empty:
         print("Error")
         return artist_songs
-    songs_played = playlist[["Artist", "Title"]].copy()
-    songs_played["Check"] = True
-    songs_played["Artist_low"] = songs_played["Artist"].str.lower()
-    songs_played["Title_low"] = songs_played["Title"].str.lower()
-    songs_played = songs_played[["Check", "Artist_low", "Title_low"]]
-    artist_songs["Artist_low"] = artist_songs["Artist"].str.lower()
-    artist_songs["Title_low"] = artist_songs["Title"].str.lower()
-    merged = pd.merge(
-        artist_songs, songs_played, how="left", on=["Artist_low", "Title_low"]
-    )
-    merged = merged[(merged["Check"].isnull()) & (merged["Played"] >= min_play)][
+    merged = remove_played(artist_songs, playlist)
+    merged = merged[(merged["Played"] >= min_play)][
         ["Artist", "Album", "Title", "Played", "Added first", "Played last"]
     ]
     if max_play > 0:
@@ -915,18 +923,7 @@ def find_old_song(
         .set_axis(["Artist", "Title", "Played", "Played last"], axis=1, inplace=False)
     )
     old_songs = old_songs[(old_songs["Played last"] < date)]
-    songs_played = playlist[["Artist", "Title"]].copy()
-    songs_played["Check"] = True
-    songs_played["Artist_low"] = songs_played["Artist"].str.lower()
-    songs_played["Title_low"] = songs_played["Title"].str.lower()
-    old_songs["Artist_low"] = old_songs["Artist"].str.lower()
-    old_songs["Title_low"] = old_songs["Title"].str.lower()
-    merged = pd.merge(
-        old_songs, songs_played, how="left", on=["Artist_low", "Title_low"]
-    )
-    merged = merged[(merged["Check"].isnull())][
-        ["Artist", "Title", "Played", "Played last"]
-    ]
+    merged = remove_played(old_songs, playlist)
     if sort_by_last:
         merged = merged.sort_values(by="Played last", ascending=False)
     else:
