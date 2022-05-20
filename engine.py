@@ -6,13 +6,14 @@ Created on Tue May  7 21:56:39 2019
 """
 
 import datetime
-import random as rnd
-import pickle as pc
 import multiprocessing as mp
-import pandas as pd
+import pickle as pc
+import random as rnd
+from typing import Optional, Union
+
 import numpy as np
 import numpy.typing as npt
-from typing import Union, Optional
+import pandas as pd
 
 
 def load_partial(
@@ -291,6 +292,54 @@ def choose_song(
         percent += perc_inc
     return indices[song_place], trial_num
 
+def save_to_cache(
+    artist: str,
+    album: str,
+    title: str,
+    similars_list: pd.DataFrame,
+    cache: pd.DataFrame
+) -> pd.DataFrame:
+    """Gets a cache dataframe and saves the similars list to it."""
+    if is_in_cache(artist, album, title, cache):
+        # TODO: this should delete the current line in the cache and inser the new one
+        return cache
+    line = (
+        similars_list.sort_values(by=["Artist", "Album", "Title"]).
+        set_index(["Artist", "Album", "Title"]).
+        transpose()
+    )
+    index = pd.MultiIndex.from_tuples([
+        (artist, album, title, "Point"),
+        (artist, album, title, "Last"),
+        (artist, album, title, "Place")],
+        names=["Artist", "Album", "Title", ""])
+    line.index = index
+    result = pd.concat([cache, line]).sort_index()
+    return result
+
+def is_in_cache(artist: str, album: str, title: str, cache: pd.DataFrame) -> bool:
+    """Checks whether a certain song has been saved to the cache."""
+    if len(cache) == 0:
+        return False
+    songs = cache.reset_index()[["Artist", "Album", "Title"]]
+    length = len(
+        songs[
+            (songs["Artist"] == artist) &
+            (songs["Album"] == album) &
+            (songs["Title"] == title)
+        ]
+    )
+    return length > 0
+
+def return_from_cache(artist: str, album: str, title: str, cache: pd.DataFrame) -> pd.DataFrame:
+    """Returns the list of similar songs from the cache for a specific song."""
+    result = (
+        cache.loc[(artist, album, title), :].
+        transpose().
+        sort_values(by=["Place"]).
+        reset_index()
+    )
+    return result[(result["Place"].notna())]
 
 def generate_list(
     playlist: pd.DataFrame,
@@ -300,6 +349,7 @@ def generate_list(
     title: str = "",
     album: Union[str, float] = "",
     cumul_find: bool = False,
+    cache: Optional[pd.DataFrame] = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -327,6 +377,8 @@ def generate_list(
         timeframe: see find_similar()
         points: see find_similar()
     """
+    if cache is None:
+        cache = pd.DataFrame([])
     base_percent: float = 30
     timeframe: int = 30 * 60
     points: list[int] = [10, 5, 2, 1, 1]
@@ -358,6 +410,8 @@ def generate_list(
                 album = ""
             else:
                 album = playlist["Album"].values[last]
+        album = str(album)
+        assert isinstance(album, str)
         if artist == "" or title == "":
             if artist == "":
                 all_songs = (
@@ -400,7 +454,15 @@ def generate_list(
             if cumul_find:
                 similars = cumul_similar(songlist, playlist, timeframe, cumul_points)
             else:
-                similars = find_similar(songlist, artist, title, album, timeframe, points)
+                if is_in_cache(artist, album, title, cache):
+                    similars = return_from_cache(artist, album, title, cache)
+                    print(f"Got data for {artist} - {title} from the cache")
+                else:
+                    similars = find_similar(songlist, artist, title, album, timeframe, points)
+                    print(f"Finding similars for {artist} - {title}")
+                    if not similars.empty:
+                        cache = save_to_cache(artist, album, title, similars, cache)
+                        print(f"   Cached similars for {artist} - {title}")
             if similars.empty:
                 print("Expanding the playlist failed after:")
                 print("    Artist: ", artist)
