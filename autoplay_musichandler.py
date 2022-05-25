@@ -26,6 +26,7 @@ class DataBaseWrapper(threading.Thread):
             "list_songs_bck": self.db.list_songs_bck,
             "suggest_song": self.db.suggest_song,
             "search_artist": self.db.search_artist,
+            "search_string": self.db.search_string,
             "delete_song": self.db.delete_song,
             "add_song": self.db.add_song,
             "db_maintain": self.db.db_maintain,
@@ -324,6 +325,19 @@ class MusicHandler():
         #self.db.new_songlist(sort_by=sort_by, min_play=min_play,
         #                     max_play=max_play)
         
+    def search_string(self, key: str, hide_played: bool):
+        self.comm_que.put(["search_string", [key, hide_played]])
+        self.result_storage["search_string"] = pd.DataFrame([])
+
+    def ret_search_strings(self):
+        assert "search_string" in self.result_storage, \
+            "This should only be called if we started a search for songs."
+        self.get_results_from_queue()
+        if self.result_storage["search_string"].empty:
+            return pd.DataFrame([])
+        response = self.result_storage.pop("search_string")
+        return response
+
     def search_artist(self, artist_string):
         self.comm_que.put(["search_artist", [artist_string]])
         #self.found_songs = self.db.search_artist(self.music, artist_string)

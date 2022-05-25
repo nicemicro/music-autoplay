@@ -19,6 +19,7 @@ class DataBases:
         self.artists = pd.DataFrame([])
         self.albums = pd.DataFrame([])
         self.playlist = pd.DataFrame([])
+        self.songs = pd.DataFrame([])
         self.load_file(filename)
         if self.playlist.empty:
             self.currentplayed = -1
@@ -96,17 +97,23 @@ class DataBases:
         self.plstartindex = 0
         self.plendindex = 0
         
-    def mergesongdata(self, new_list, songs):
+    def mergesongdata(self, new_list: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
         if new_list.empty or songs.empty: return pd.DataFrame([])
-        new_list["artist_l"] = new_list["artist"].str.replace(",", "")
-        new_list["artist_l"] = new_list["artist_l"].str.lower()
-        new_list["title_l"] = new_list["title"].str.replace(",", "")
-        new_list["title_l"] = new_list["title_l"].str.lower()
-        songs["artist_l"] = songs["Artist"].str.lower()
-        songs["title_l"] = songs["Title"].str.lower()
-        new_list = pd.merge(new_list, songs, how="left",
-                            on=["artist_l", "title_l"])
-        return new_list
+        for dictkey in ["artist", "album", "title"]:
+            if dictkey not in new_list.columns:
+                new_list[dictkey+"_l"] = ""
+                continue
+            new_list[dictkey+"_l"] = new_list[dictkey].str.lower()
+            new_list[dictkey+"_l"] = new_list[dictkey+"_l"].str.replace(",", "")
+        for dictkey in ["Artist", "Album", "Title"]:
+            if dictkey not in songs.columns:
+                songs[dictkey.lower()+"_l"] = ""
+                continue
+            songs[dictkey.lower()+"_l"] = songs[dictkey].str.lower()
+        #new_list.to_csv("new_list.csv")
+        #songs.to_csv("songs.csv")
+        #pd.merge(new_list, songs, how="left", on=["artist_l", "title_l"]).to_csv("merged.csv")
+        return pd.merge(new_list, songs, how="left", on=["artist_l", "album_l" ,"title_l"])
     
     def list_songs_fwd(self, num):
         index = self.plendindex
@@ -223,7 +230,28 @@ class DataBases:
                         [len(line["suggestions"]) for line in self.suggestion]):
             print(f"    {i}. {a} - {t} (sugg: {l} pcs.)")
         return self.make_suggestion()
-    
+
+    def search_string(self, string: str, hide_played: bool) -> pd.DataFrame:
+        if self.songs.empty:
+            self.songs = e.summarize_songlist(self.songlist)
+        keys: list[str] = string.split(" ")
+        result_list: list[dict[str, str]]
+        if len(keys) == 1 and len(keys[0]) <= 2:
+            result_list = self.music.find("any", keys[0])
+        else:
+            search_list: list[str] = []
+            for key in keys:
+                search_list += ["any", key]
+            result_list = self.music.search(*search_list)
+        if not result_list:
+            return pd.DataFrame([])
+        result = self.mergesongdata(pd.DataFrame(result_list), self.songs)
+        if hide_played:
+            #result.to_csv("result.csv")
+            #e.remove_played(result, self.playlist).to_csv("result_cut.csv")
+            return e.remove_played(result, self.playlist)
+        return result
+
     def search_artist(self, search_string):
         result = pd.DataFrame([])
         if not search_string:

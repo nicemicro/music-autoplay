@@ -456,13 +456,10 @@ def generate_list(
             else:
                 if is_in_cache(artist, album, title, cache):
                     similars = return_from_cache(artist, album, title, cache)
-                    print(f"Got data for {artist} - {title} from the cache")
                 else:
                     similars = find_similar(songlist, artist, title, album, timeframe, points)
-                    print(f"Finding similars for {artist} - {title}")
                     if not similars.empty:
                         cache = save_to_cache(artist, album, title, similars, cache)
-                        print(f"   Cached similars for {artist} - {title}")
             if similars.empty:
                 print("Expanding the playlist failed after:")
                 print("    Artist: ", artist)
@@ -772,6 +769,81 @@ def remove_played(
     )
     merged = merged[(merged["Check"].isnull())]
     return merged[list_to_handle.columns]
+
+
+def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
+    result: pd.DataFrame
+    songlist = songlist.copy()
+    songlist["Artist_low"] = songlist["Artist"].str.lower()
+    songlist["Title_low"] = songlist["Title"].str.lower()
+    songlist["Album_low"] = songlist["Album"].str.lower().fillna("")
+    artist_songs = songlist.groupby(
+        ["Artist_low", "Album_low", "Title_low"]
+    ).agg(
+        {
+            "Scrobble time": ["count", "max", "min"],
+            "Artist": ["max"],
+            "Album": ["max"],
+            "Title": ["max"],
+        }
+    )
+    songs = artist_songs.reset_index(drop=False).set_axis(
+        [
+            "Artist_low",
+            "Album_low",
+            "Title_low",
+            "Played",
+            "Played last",
+            "Added first",
+            "Artist",
+            "Album",
+            "Title",
+        ],
+        axis=1,
+        inplace=False,
+    )
+    no_album = songs[(songs["Album"].isna())]
+    with_album = songs[(songs["Album"].notna())]
+    bestalbum = with_album.groupby(["Artist_low", "Title_low"]).agg(
+        {"Played": ["max"]}
+    ).reset_index().set_axis(
+        ["Artist_low", "Title_low", "Played"], axis=1, inplace=False
+    )
+    bestalbum = pd.merge(
+        with_album, bestalbum, on=["Artist_low", "Title_low", "Played"], how="right"
+    )
+    no_album = pd.merge(
+        bestalbum, no_album, on=["Artist_low", "Title_low"], how="right"
+    )
+    no_album["Album_low"] = no_album["Album_low_x"].fillna("")
+    no_album["Played"] = (
+        no_album["Played_x"].fillna(0) +
+        no_album["Played_y"].fillna(0)
+    ).astype(int)
+    no_album["Played last"] = no_album[["Played last_x", "Played last_y"]].max(axis=1)
+    no_album["Added first"] = no_album[["Added first_x", "Added first_y"]].min(axis=1)
+    no_album = no_album.rename(
+        columns={"Artist_y": "Artist", "Album_x": "Album", "Title_y": "Title"}
+    )[[
+        "Artist",
+        "Album",
+        "Title",
+        "Played last",
+        "Added first",
+        "Played",
+        "Artist_low",
+        "Album_low",
+        "Title_low"
+    ]]
+    overwrite = pd.merge(
+        with_album, no_album[["Artist_low", "Album_low", "Title_low"]], how="inner"
+    )
+    overwrite[["Over"]] = True
+    overwrite = pd.merge(with_album, overwrite, how="left")
+    result = pd.concat(
+        [overwrite[(overwrite["Over"].isna())], no_album]
+    ).sort_values(["Artist", "Album", "Title"]).reset_index(drop=True)
+    return result[["Artist", "Album", "Title", "Played", "Played last", "Added first"]]
 
 #%%
 def find_not_played(

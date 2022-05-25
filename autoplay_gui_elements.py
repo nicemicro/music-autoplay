@@ -8,6 +8,7 @@ Created on Tue Sep 14 23:33:44 2021
 
 import tkinter as tk
 from tkinter import ttk
+import pandas as pd
 
 class Player(ttk.Frame):
     def __init__(self, parent, controller, playlist):
@@ -190,17 +191,30 @@ class Search(ttk.Frame):
     def __init__(self, parent, controller):
         ttk.Frame.__init__(self, parent)
         self.controller = controller
+        self._show_prev_search = tk.IntVar()
         
         self.header = ttk.Frame(self)
         self.header.grid(row=0, column=0, columnspan=4, sticky="nsew")
-        ttk.Label(self.header, text="Artist search: ").grid(row=0, column=0,
-                                                            sticky="nse")
+        ttk.Label(
+            self.header,
+            text="Search: "
+        ).grid(row=0, column=0, sticky="nse")
         self.searchstring = tk.StringVar()
         self.searchbox = ttk.Entry(self.header, textvariable=self.searchstring)
         self.searchbox.bind('<Return>', self.search_enter)
         self.searchbox.grid(row=0, column=1, sticky="nsew")
         ttk.Button(self.header, text="Search", command=self.searchnow).\
             grid(row=0, column=2, sticky="nsew")
+        ttk.Label(
+            self.header,
+            text="Show already played:"
+        ).grid(row=1, column=0, sticky="nse")
+        ttk.Checkbutton(
+            self.header,
+            variable=self._show_prev_search,
+            offvalue=0,
+            onvalue=1
+        ).grid(row=1, column=1, sticky="nsew")
         self.header.columnconfigure(0, weight = 0)
         self.header.columnconfigure(1, weight = 10)
         self.header.columnconfigure(2, weight = 1)
@@ -221,9 +235,11 @@ class Search(ttk.Frame):
         self.songbar.grid(row=1, column=3, sticky="nsew")
         self.songlistbox.configure(yscrollcommand=self.songbar.set)
         
-        ttk.Button(self, text="Play selected", 
-                   command= lambda: self.add_song()) \
-            .grid(row=2, column=0, columnspan=1)
+        ttk.Button(
+            self,
+            text="Add selected",
+            command= lambda: self.add_song()
+        ).grid(row=2, column=0, columnspan=1)
         
         self.columnconfigure(0, weight = 1)
         self.columnconfigure(1, weight = 1)
@@ -237,11 +253,13 @@ class Search(ttk.Frame):
         self.searchnow()
         
     def searchnow(self):
-        artist_string = self.searchstring.get()
-        if len(artist_string) < 3: return
-        self.controller.search_artist(artist_string)
-    
-    def setlist(self, newlist):
+        search_string = self.searchstring.get()
+        if len(search_string) < 2:
+            return
+        self.controller.search_string(search_string, self._show_prev_search.get()!=1)
+        #self.controller.search_artist(search_string)
+
+    def setlist(self, newlist: pd.DataFrame):
         elements = self.songlistbox.get_children()
         if elements:
             for element in elements:
@@ -257,23 +275,31 @@ class Search(ttk.Frame):
         albums = newlist.groupby(["artist", "album"]).agg({"title": "count"}).\
             reset_index(drop=False)[["artist", "album"]]
         for art_ind in artists.index:
-            self.songlistbox.insert("", "end",
-                                    iid=artists.at[art_ind, "artist"],
-                                    text=artists.at[art_ind, "artist"])
+            self.songlistbox.insert(
+                "",
+                "end",
+                iid=artists.at[art_ind, "artist"],
+                text=artists.at[art_ind, "artist"]
+            )
         for alb_ind in albums.index:
-            self.songlistbox.insert(albums.at[alb_ind, "artist"], "end",
-                                    iid=(albums.at[alb_ind, "artist"]+
-                                         albums.at[alb_ind, "album"]),
-                                    text=albums.at[alb_ind, "album"])
-        toadd = newlist.to_dict(orient="records")
-        s_ind = 0
-        for songinfo in toadd:
-            self.songlistbox.insert(\
-                (newlist.at[s_ind, "artist"]+newlist.at[s_ind, "album"]),
-                "end", iid=s_ind, text=songinfo["title"],
-                values=(int(songinfo["Played"]), songinfo["Played last"],
-                        songinfo["Added first"]))
-            s_ind += 1
+            self.songlistbox.insert(
+                albums.at[alb_ind, "artist"],
+                "end",
+                iid=(albums.at[alb_ind, "artist"] + albums.at[alb_ind, "album"]),
+                text=albums.at[alb_ind, "album"]
+            )
+        for s_ind in newlist.index:
+            self.songlistbox.insert(
+                (newlist.at[s_ind, "artist"] + newlist.at[s_ind, "album"]),
+                "end",
+                iid=s_ind,
+                text=newlist.at[s_ind, "title"],
+                values=(
+                    int(newlist.at[s_ind, "Played"]),
+                    newlist.at[s_ind, "Played last"],
+                    newlist.at[s_ind, "Added first"]
+                )
+            )
     
     def add_song(self):
         selected = self.songlistbox.focus()

@@ -103,6 +103,17 @@ class AppContainer(tk.Tk):
         self.music_handler.new_songlist(sort_by, min_play, max_play)
         self.next_page()
     
+    def search_string(self, key: str, hide_played: bool):
+        self.music_handler.search_string(key, hide_played)
+        self.after(50, self.search_string_fill)
+
+    def search_string_fill(self):
+        self.searchresult = self.music_handler.ret_search_strings()
+        if self.searchresult.empty:
+            self.after(200, self.search_string_fill)
+            return
+        self.frames["Search"].setlist(self.searchresult)
+
     def search_artist(self, artist_string):
         self.music_handler.search_artist(artist_string)
         self.after(50, self.search_artist_fill)
