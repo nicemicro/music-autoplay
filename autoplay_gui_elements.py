@@ -157,7 +157,7 @@ class Not_played(ttk.Frame):
         self.rowconfigure(1, weight = 0)
         self.rowconfigure(2, weight = 0)
     
-    def setlist(self, newlist):
+    def setlist(self, newlist: pd.DataFrame):
         elements = self.songlistbox.get_children()
         if elements:
             for element in elements:
@@ -171,7 +171,7 @@ class Not_played(ttk.Frame):
         toadd = newlist.to_dict(orient="records")
         index = 0
         for songinfo in toadd:
-            self.songlistbox.insert("", "end", iid=index, \
+            self.songlistbox.insert("", "end", iid=str(index), \
                 text=songinfo["display"], values=(songinfo["album"], \
                 int(songinfo["Played"]), songinfo["Played last"], \
                 songinfo["Added first"]))
@@ -259,7 +259,7 @@ class Search(ttk.Frame):
         self.controller.search_string(search_string, self._show_prev_search.get()!=1)
         #self.controller.search_artist(search_string)
 
-    def setlist(self, newlist: pd.DataFrame):
+    def setlist(self, newlist: pd.DataFrame) -> None:
         elements = self.songlistbox.get_children()
         if elements:
             for element in elements:

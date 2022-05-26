@@ -13,7 +13,7 @@ import os
 from mpd_wrapper import MPD
 import tkinter as tk
 from tkinter import ttk
-
+from typing import Optional, Union
 
 #%%
 
@@ -32,26 +32,23 @@ class AppContainer(tk.Tk):
         self.playerframe.grid(row=0, column=0, sticky="nsew")
         self.bottomsection = ttk.Notebook(container)
         self.bottomsection.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
-        self.frames = {}
-        for F in (apgui.Not_played, apgui.Search):
-            page_name = F.__name__
-            frame = F(parent=self.bottomsection, controller=self)
-            self.frames[page_name] = frame
-            self.bottomsection.add(frame, text=page_name.replace("_", " "))
-            # put all of the pages in the same location;
-            # the one on the top of the stacking order
-            # will be the one that is visible.
+        self.frames: dict[str, Union[apgui.Not_played, apgui.Search]] = {
+            "Not_played": apgui.Not_played(parent=self.bottomsection, controller=self),
+            "Search": apgui.Search(parent=self.bottomsection, controller=self)
+        }
+        for name, frame in self.frames.items():
+            self.bottomsection.add(frame, text=name.replace("_", " "))
             
         container.rowconfigure(0, weight=0)
         container.rowconfigure(1, weight=1)
         container.columnconfigure(0, weight=1)
         
         # These variables are controling the listing of possible songs to play
-        self.nplistsize = 25 # the number of songs listed in the not played box
-        self.suggestionlist = False
-        self.selectable = None        
+        self.nplistsize: int = 25 # the number of songs listed in the not played box
+        self.suggestionlist: bool = False
+        self.selectable: Optional[apmh.pd.DataFrame] = None
         self.switch_page("new add", 3, 15)
-        self.searchresult = None
+        self.searchresult: Optional[apmh.pd.DataFrame] = None
 
         self.after(500, self.update_current_played)
         self.after(5000, self.db_maintain)
@@ -60,16 +57,17 @@ class AppContainer(tk.Tk):
     def play_pause(self):
         self.music_handler.play_pause()
         
-    def play_next(self, place):
+    def play_next(self, place: int):
         self.music_handler.play_next(place)
     
-    def change_song(self, place):
+    def change_song(self, place: int):
         self.music_handler.change_song(place)
   
-    def play_file(self, position, filedata):
+    def play_file(self, position: int, filedata):
         self.music_handler.play_file(position, filedata)
     
     def add_song_from_list(self, position, itemnum):
+        assert self.selectable is not None
         filedata = [self.selectable.at[itemnum, "file"],
                     self.selectable.at[itemnum, "artist"],
                     self.selectable.at[itemnum, "album"],
@@ -79,7 +77,8 @@ class AppContainer(tk.Tk):
     def volume(self, change):
         self.music_handler.volume(change)
     
-    def list_choices(self):        
+    def list_choices(self):
+        assert self.selectable is not None
         self.selectable = self.selectable.reset_index(drop=True)
         self.frames["Not_played"].setlist(self.selectable.copy())
         
@@ -91,9 +90,9 @@ class AppContainer(tk.Tk):
         self.music_handler.songlist_page_switch(self.nplistsize, True)
         self.after(50, self.page_change)
         
-    def page_change(self):
+    def page_change(self) -> None:
         new_selectable = self.music_handler.ret_songl_pg_sw()
-        if new_selectable.empty:
+        if new_selectable is None:
             self.after(200, self.page_change)
             return
         self.selectable = new_selectable
@@ -103,29 +102,30 @@ class AppContainer(tk.Tk):
         self.music_handler.new_songlist(sort_by, min_play, max_play)
         self.next_page()
     
-    def search_string(self, key: str, hide_played: bool):
+    def search_string(self, key: str, hide_played: bool) -> None:
         self.music_handler.search_string(key, hide_played)
         self.after(50, self.search_string_fill)
 
-    def search_string_fill(self):
+    def search_string_fill(self) -> None:
         self.searchresult = self.music_handler.ret_search_strings()
-        if self.searchresult.empty:
+        if self.searchresult is None:
             self.after(200, self.search_string_fill)
             return
         self.frames["Search"].setlist(self.searchresult)
 
-    def search_artist(self, artist_string):
+    def search_artist(self, artist_string: str) -> None:
         self.music_handler.search_artist(artist_string)
         self.after(50, self.search_artist_fill)
     
-    def search_artist_fill(self):
+    def search_artist_fill(self) -> None:
         self.searchresult = self.music_handler.ret_search_artists()
-        if self.searchresult.empty:
+        if self.searchresult is None:
             self.after(200, self.search_artist_fill)
             return
         self.frames["Search"].setlist(self.searchresult)
     
     def add_found_song(self, playnow, itemnum):
+        assert self.searchresult is not None
         filedata = [self.searchresult.at[itemnum, "file"],
                     self.searchresult.at[itemnum, "artist"],
                     self.searchresult.at[itemnum, "album"],
