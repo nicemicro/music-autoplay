@@ -63,15 +63,15 @@ class AppContainer(tk.Tk):
     def change_song(self, place: int):
         self.music_handler.change_song(place)
   
-    def play_file(self, position: int, filedata):
+    def play_file(self, position: int, filedata: tuple[str, str, str, str]) -> None:
         self.music_handler.play_file(position, filedata)
     
-    def add_song_from_list(self, position, itemnum):
+    def add_song_from_list(self, position: int, itemnum: int) -> None:
         assert self.selectable is not None
-        filedata = [self.selectable.at[itemnum, "file"],
-                    self.selectable.at[itemnum, "artist"],
-                    self.selectable.at[itemnum, "album"],
-                    self.selectable.at[itemnum, "title"]]
+        filedata = (str(self.selectable.at[itemnum, "file"]),
+                    str(self.selectable.at[itemnum, "Artist"]),
+                    str(self.selectable.at[itemnum, "Album"]),
+                    str(self.selectable.at[itemnum, "Title"]))
         self.play_file(position, filedata)
 
     def volume(self, change):
@@ -124,12 +124,12 @@ class AppContainer(tk.Tk):
             return
         self.frames["Search"].setlist(self.searchresult)
     
-    def add_found_song(self, playnow, itemnum):
+    def add_found_song(self, playnow: bool, itemnum: int):
         assert self.searchresult is not None
-        filedata = [self.searchresult.at[itemnum, "file"],
-                    self.searchresult.at[itemnum, "artist"],
-                    self.searchresult.at[itemnum, "album"],
-                    self.searchresult.at[itemnum, "title"]]
+        filedata = (str(self.searchresult.at[itemnum, "file"]),
+                    str(self.searchresult.at[itemnum, "Artist"]),
+                    str(self.searchresult.at[itemnum, "Album"]),
+                    str(self.searchresult.at[itemnum, "Title"]))
         self.play_file(playnow, filedata)
         
     #def update_next_played(self):

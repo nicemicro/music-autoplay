@@ -65,57 +65,57 @@ class DataBases:
         if len(result) == 0:
             return pd.DataFrame(result)
         elif len(result) == 1:
-            # TODO what the hell happens if the string searched doesn't
-            # actually match what we found???
+            #print(f"Search: {artist}-{album}, found {len(result)}")
             if not "album" in result[0]:
                 result[0]["album"] = ""
             result = pd.DataFrame(result)
-            result["artist"] = result["artist"].str.replace(",", "")
-            result["album"] = result["album"].str.replace(",", "")
-            result["title"] = result["title"].str.replace(",", "")
             if strict:
-                if result["artist"].str.lower()[0] != artist.lower():
+                if result["artist"].str.lower().str.replace(",", "")[0] != artist.lower():
                     return pd.DataFrame()
-                if album and result["album"].str.lower()[0] != album.lower():
+                if album and result["album"].str.lower().str.replace(",", "")[0] != album.lower():
                     return pd.DataFrame()
-                if result["title"].str.lower()[0] != title.lower():
+                if result["title"].str.lower().str.replace(",", "")[0] != title.lower():
                     return pd.DataFrame()
             return result
+        #print(f"Search: {artist}-{album}, found {len(result)}")
         if not "album" in result[0]:
             result[0]["album"] = ""
         result = pd.DataFrame(result)
-        result["artist"] = result["artist"].str.replace(",", "")
-        result["album"] = result["album"].str.replace(",", "")
-        result["title"] = result["title"].str.replace(",", "")
-        result = result[(result["title"].str.lower() == title.lower())]
-        result = result[(result["artist"].str.lower() == artist.lower())]
+        result = result[(result["title"].str.replace(",", "").str.lower() == title.lower())]
+        result = result[(result["artist"].str.replace(",", "").str.lower() == artist.lower())]
         return result.reset_index(drop=True)
-    
+
     def new_songlist(self, *args, **kwargs):
         self.playablelist = e.find_not_played(self.songlist, self.playlist,
-                                              *args, **kwargs)
+                *args, **kwargs)
         self.plstartindex = 0
         self.plendindex = 0
-        
+
     def mergesongdata(self, new_list: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
         if new_list.empty or songs.empty: return pd.DataFrame([])
         for dictkey in ["artist", "album", "title"]:
             if dictkey not in new_list.columns:
+                new_list[dictkey] = ""
                 new_list[dictkey+"_l"] = ""
                 continue
             new_list[dictkey+"_l"] = new_list[dictkey].str.lower()
             new_list[dictkey+"_l"] = new_list[dictkey+"_l"].str.replace(",", "")
         for dictkey in ["Artist", "Album", "Title"]:
             if dictkey not in songs.columns:
+                songs[dictkey] = ""
                 songs[dictkey.lower()+"_l"] = ""
                 continue
             songs[dictkey.lower()+"_l"] = songs[dictkey].str.lower()
         #new_list.to_csv("new_list.csv")
         #songs.to_csv("songs.csv")
         #pd.merge(new_list, songs, how="left", on=["artist_l", "title_l"]).to_csv("merged.csv")
-        return pd.merge(new_list, songs, how="left", on=["artist_l", "album_l" ,"title_l"])
-    
-    def list_songs_fwd(self, num):
+        result = pd.merge(new_list, songs, how="left", on=["artist_l", "album_l" ,"title_l"])
+        result["Artist"] = result["artist"].str.replace(",", "")
+        result["Album"] = result["album"].str.replace(",", "")
+        result["Title"] = result["title"].str.replace(",", "")
+        return result
+
+    def list_songs_fwd(self, num: int):
         index = self.plendindex
         songs = self.playablelist
         new_list = pd.DataFrame([])

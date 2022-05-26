@@ -314,11 +314,12 @@ class MusicHandler():
     
     def ret_songl_pg_sw(self) -> Optional[pd.DataFrame]:
         assert "list_songs" in self.result_storage, \
-            "This should only be called if we started listing a song page"
+                "This should only be called if we started listing a song page"
         self.get_results_from_queue()
         response: Optional[pd.DataFrame] = None
         if self.result_storage["list_songs"] is not None:
             response = self.result_storage.pop("list_songs")
+            #response.to_csv("list.csv")
         return response
     
     def new_songlist(self, sort_by: str, min_play: int, max_play: int) -> None:
@@ -339,6 +340,7 @@ class MusicHandler():
         response: Optional[pd.DataFrame] = None
         if self.result_storage["search_string"] is not None:
             response = self.result_storage.pop("search_string")
+            #response.to_csv("search.csv")
         return response
 
     def search_artist(self, artist_string: str) -> None:
