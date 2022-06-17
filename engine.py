@@ -16,6 +16,64 @@ import numpy.typing as npt
 import pandas as pd
 
 
+class Cache():
+    def __init__(self):
+        self.cache = pd.DataFrame()
+
+    def save_to_cache(
+        self,
+        artist: str,
+        album: str,
+        title: str,
+        similars_list: pd.DataFrame,
+    ) -> None:
+        """Gets a cache dataframe and saves the similars list to it."""
+        if self.is_in_cache(artist, album, title):
+            # TODO: this should delete the current line in the cache and inser the new one
+            return
+        #similars_list = similars_list[["Artist", "Album", "Title", "Point", "Last"]]
+        line = (
+            similars_list.sort_values(by=["Artist", "Album", "Title"]).
+            set_index(["Artist", "Album", "Title"]).
+            transpose()
+        )
+        index = pd.MultiIndex.from_tuples([
+            (artist, album, title, "Point"),
+            (artist, album, title, "Last"),
+            (artist, album, title, "Place")],
+            names=["Artist", "Album", "Title", ""])
+        line.index = index
+        self.cache = pd.concat([self.cache, line]).sort_index()
+
+    def is_in_cache(
+        self,
+        artist: str,
+        album: str,
+        title: str
+    ) -> bool:
+        """Checks whether a certain song has been saved to the cache."""
+        if len(self.cache) == 0:
+            return False
+        songs = self.cache.reset_index()[["Artist", "Album", "Title"]]
+        length = len(
+            songs[
+                (songs["Artist"] == artist) &
+                (songs["Album"] == album) &
+                (songs["Title"] == title)
+            ]
+        )
+        return length > 0
+
+    def return_from_cache(self, artist: str, album: str, title: str) -> pd.DataFrame:
+        """Returns the list of similar songs from the cache for a specific song."""
+        result = (
+            self.cache.loc[(artist, album, title), :].
+            transpose().
+            sort_values(by=["Place"]).
+            reset_index()
+        )
+        return result[(result["Place"].notna())]
+
 def load_partial(
     songlist: pd.DataFrame, artists: pd.DataFrame, albums: pd.DataFrame, filename: str
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -292,55 +350,6 @@ def choose_song(
         percent += perc_inc
     return indices[song_place], trial_num
 
-def save_to_cache(
-    artist: str,
-    album: str,
-    title: str,
-    similars_list: pd.DataFrame,
-    cache: pd.DataFrame
-) -> pd.DataFrame:
-    """Gets a cache dataframe and saves the similars list to it."""
-    if is_in_cache(artist, album, title, cache):
-        # TODO: this should delete the current line in the cache and inser the new one
-        return cache
-    line = (
-        similars_list.sort_values(by=["Artist", "Album", "Title"]).
-        set_index(["Artist", "Album", "Title"]).
-        transpose()
-    )
-    index = pd.MultiIndex.from_tuples([
-        (artist, album, title, "Point"),
-        (artist, album, title, "Last"),
-        (artist, album, title, "Place")],
-        names=["Artist", "Album", "Title", ""])
-    line.index = index
-    result = pd.concat([cache, line]).sort_index()
-    return result
-
-def is_in_cache(artist: str, album: str, title: str, cache: pd.DataFrame) -> bool:
-    """Checks whether a certain song has been saved to the cache."""
-    if len(cache) == 0:
-        return False
-    songs = cache.reset_index()[["Artist", "Album", "Title"]]
-    length = len(
-        songs[
-            (songs["Artist"] == artist) &
-            (songs["Album"] == album) &
-            (songs["Title"] == title)
-        ]
-    )
-    return length > 0
-
-def return_from_cache(artist: str, album: str, title: str, cache: pd.DataFrame) -> pd.DataFrame:
-    """Returns the list of similar songs from the cache for a specific song."""
-    result = (
-        cache.loc[(artist, album, title), :].
-        transpose().
-        sort_values(by=["Place"]).
-        reset_index()
-    )
-    return result[(result["Place"].notna())]
-
 def generate_list(
     playlist: pd.DataFrame,
     songlist: pd.DataFrame,
@@ -349,7 +358,7 @@ def generate_list(
     title: str = "",
     album: Union[str, float] = "",
     cumul_find: bool = False,
-    cache: Optional[pd.DataFrame] = None,
+    cache: Optional[Cache] = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -378,7 +387,7 @@ def generate_list(
         points: see find_similar()
     """
     if cache is None:
-        cache = pd.DataFrame([])
+        cache = Cache()
     base_percent: float = 30
     timeframe: int = 30 * 60
     points: list[int] = [10, 5, 2, 1, 1]
@@ -452,14 +461,14 @@ def generate_list(
             )
         else:
             if cumul_find:
-                similars = cumul_similar(songlist, playlist, timeframe, cumul_points)
+                similars = cumul_similar(songlist, playlist, timeframe, cumul_points, cache=cache)
             else:
-                if is_in_cache(artist, album, title, cache):
-                    similars = return_from_cache(artist, album, title, cache)
+                if cache.is_in_cache(artist, album, title):
+                    similars = cache.return_from_cache(artist, album, title)
                 else:
                     similars = find_similar(songlist, artist, title, album, timeframe, points)
                     if not similars.empty:
-                        cache = save_to_cache(artist, album, title, similars, cache)
+                        cache.save_to_cache(artist, album, title, similars)
             if similars.empty:
                 print("Expanding the playlist failed after:")
                 print("    Artist: ", artist)
@@ -489,7 +498,7 @@ def generate_list(
 def latest_songs(
     playlist: pd.DataFrame, timeframe: int = 30 * 60, points: Optional[list[int]] = None
 ) -> pd.DataFrame:
-    """Returns a list of the latest shongs from the playlist."""
+    """Returns a list of the latest songs from the playlist."""
     if points is None:
         points = [10, 5, 2, 1, 1]
     points = pd.DataFrame(points, columns=["Multiplier"])
@@ -511,40 +520,67 @@ def cumul_similar(
     playlist: pd.DataFrame,
     timeframe: int = 30 * 60,
     points: Optional[npt.NDArray[np.int32]] = None,
-    show_all: bool = False
+    show_all: bool = False,
+    cache: Optional[Cache] = None
 ):
     """Calculates the similarity points based on the cumulative points from
     multuiple base songs."""
     if points is None:
         points = np.array([[10, 0, 0], [8, 2, 0], [5, 3, 1]], dtype=np.int32)
+    if cache is None:
+        cache = Cache()
     latests = latest_songs(playlist, timeframe, list(points.sum(axis=1)))
     songqueue: mp.Queue = mp.Queue()
     processes: dict[int, mp.Process] = {}
+    cached_similars: dict[int, pd.DataFrame] = {}
+    song: int
     for song in latests.index:
+        artist = latests.at[song, "Artist"]
+        album = latests.at[song, "Album"]
+        if album == np.NaN:
+            album = ""
+        title = latests.at[song, "Title"]
+        if cache.is_in_cache(artist, album, title):
+            cached_similars[song] = cache.return_from_cache(artist, album, title)
+            continue
         processes[song] = mp.Process(
             target=similars_parallel,
             args=(
                 songqueue,
                 song,
                 songlist,
-                latests.at[song, "Artist"],
-                latests.at[song, "Title"],
-                latests.at[song, "Album"],
+                artist,
+                title,
+                album,
                 timeframe,
-                points,
             ),
         )
         processes[song].start()
-    collected: list[int] = []
     all_similars: dict[int, pd.DataFrame] = {}
+    collected: list[int] = []
+    similars: pd.DataFrame
     while len(collected) < len(latests.index):
-        msg: dict[str, Union[int, pd.DataFrame]] = songqueue.get()
-        similars = msg["res"]
-        song = msg["index"]
+        if len(cached_similars) > 0:
+            song = list(cached_similars.keys())[0]
+            similars = cached_similars[song]
+            cached_similars.pop(song)
+        else:
+            msg: dict[str, Union[int, pd.DataFrame]] = songqueue.get()
+            similars = msg["res"]
+            song = msg["index"]
         assert isinstance(similars, pd.DataFrame)
         assert isinstance(song, int)
         collected.append(song)
         if not similars.index.empty:
+            album = latests.at[song, "Album"]
+            if pd.isnull(album):
+                album = ""
+            cache.save_to_cache(
+                latests.at[song, "Artist"],
+                album,
+                latests.at[song, "Title"],
+                similars
+            )
             similars[f"P{song}"] = similars["Point"] / similars["Point"].sum() * 100
             similars[f"O{song}"] = similars["Place"]
             all_similars[song] = similars
@@ -616,7 +652,7 @@ def similars_parallel(
     if points is None:
         points = [10, 5, 2, 1, 1]
     result = find_similar(
-        songlist, artist, title, album, timeframe, points=[10, 5, 2, 1, 1]
+        songlist, artist, title, album, timeframe, points=points
     )
     queue.put({"index": index, "res": result})
 
@@ -627,6 +663,7 @@ def song_relations(
     first: int = 0,
     timeframe: int = 30 * 60,
     points: Optional[list[int]] = None,
+    cache: Optional[Cache] = None,
 ):
     """
     Goes through all the entries in playlist where the 'Place' value is NaT and
@@ -635,6 +672,8 @@ def song_relations(
     """
     if points is None:
         points = [10, 5, 2, 1, 1]
+    if cache is None:
+        cache = Cache()
     playlist = playlist.copy()
     tocheck = playlist[(playlist["Last"]).isnull()].index
     tocheck = tocheck[(tocheck > first)]

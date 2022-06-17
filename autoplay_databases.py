@@ -181,9 +181,10 @@ class DataBases:
             song = self.search_song(self.playlist.at[lastsong, "Artist"],
                                     self.playlist.at[lastsong, "Album"],
                                     self.playlist.at[lastsong, "Title"])
-        newline = (song[0:1][["artist", "album", "title"]]) \
-            .rename({"artist": "Artist", "album": "Album",
-                     "title": "Title"}, axis="columns")
+        if self.songs.empty:
+            self.songs = e.summarize_songlist(self.songlist)
+        song = self.mergesongdata(song, self.songs)
+        newline = (song[0:1][["Artist", "Album", "Title"]])
         if not song.empty:
             newline["Place"] = suggestionlist.at[place, "Place"]
             newline["Last"] = suggestionlist.at[place, "Last"]
