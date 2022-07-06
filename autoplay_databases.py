@@ -20,6 +20,7 @@ class DataBases:
         self.albums = pd.DataFrame([])
         self.playlist = pd.DataFrame([])
         self.songs = pd.DataFrame([])
+        self.similars_cache = e.Cache()
         self.load_file(filename)
         if self.playlist.empty:
             self.currentplayed = -1
@@ -217,7 +218,7 @@ class DataBases:
                         "album": album, "title": title}
             #currsugg["suggestions"] = e.find_similar(self.songlist, artist,
             #                                         title, album)
-            currsugg["suggestions"] = e.cumul_similar(self.songlist, self.playlist)
+            currsugg["suggestions"] = e.cumul_similar(self.songlist, self.playlist, cache=self.similars_cache)
             self.suggestion.append(currsugg)
             print(f"      (info) suggestion list added for {artist} - {title}")
             if len(self.suggestion) > 10:
