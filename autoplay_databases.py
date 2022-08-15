@@ -383,7 +383,7 @@ class DataBases:
         #print("Assumed current played: ", self.currentplayed)
         #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
         #print(f"Currently played: {c_artist} - {c_title}")
-        while line < max(self.playlist.index):
+        while line < max(self.playlist.index) and line > -1:
             if not isinstance(self.playlist.at[line, "Album"], str):
                self.playlist.at[line, "Album"] = ""
             if c_artist.lower() == self.playlist.at[line, "Artist"].lower() and \
