@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Tue May  7 21:56:39 2019
@@ -796,7 +797,7 @@ def remove_played(
     playlist: pd.DataFrame,
 ) -> pd.DataFrame:
     songs_played = playlist[["Artist", "Title"]].copy()
-    list_cpy = list_to_handle.copy()
+    list_cpy = list_to_handle.reset_index(drop=False)
     songs_played["Check"] = True
     songs_played["Artist_low"] = songs_played["Artist"].str.lower()
     songs_played["Title_low"] = songs_played["Title"].str.lower()
@@ -807,6 +808,7 @@ def remove_played(
         list_cpy, songs_played, how="left", on=["Artist_low", "Title_low"]
     )
     merged = merged[(merged["Check"].isnull())]
+    merged = merged.set_index("index")
     return merged[list_to_handle.columns]
 
 

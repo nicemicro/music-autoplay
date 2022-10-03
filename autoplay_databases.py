@@ -22,11 +22,12 @@ class DataBases:
         self.songs = pd.DataFrame([])
         self.similars_cache = e.Cache()
         self.load_file(filename)
+        self.currentplayed: int
         if self.playlist.empty:
             self.currentplayed = -1
         else:
             self.currentplayed = self.playlist.index[-1]
-        self.suggestion = []
+        self.sugg_cache: dict[int, pd.DataFrame] = {}
         self.playablelist = pd.DataFrame([])
         self.plstartindex = 0
         self.plendindex = 0
@@ -150,88 +151,65 @@ class DataBases:
         new_list = self.mergesongdata(new_list, songs)
         return new_list
     
-    def make_suggestion(self) -> pd.DataFrame:
-        song = pd.DataFrame([])
-        index: int = len(self.suggestion) - 1
-        print("-----------------------\n make_suggestion")
-        suggestionlist = pd.DataFrame([])
+    def suggest_song(self) -> pd.DataFrame:
+        song = pd.DataFrame()
+        last_index = max(self.playlist.index)
+        print()
+        print(f" -- Looking for similars list after {last_index} --")
+        if last_index not in self.sugg_cache:
+            print("      >> Generating list")
+            self.sugg_cache[last_index] = (
+                e.cumul_similar(self.songlist, self.playlist, cache=self.similars_cache)
+            )
+        print(self.playlist[-5:])
+        index = last_index
         while song.empty and index >= 0:
-            suggestionlist = self.suggestion[index]["suggestions"]
-            print("  Checked suggestions for after ",
-                  self.suggestion[index]["artist"],
-                  " - ", self.suggestion[index]["title"],
-                  f" index: {index}")
-            print(f"    remained in suggestionlist: {len(suggestionlist)}")
-            if len(suggestionlist.index) > 0:
-                print(suggestionlist[["Artist", "Title", "Point", "Place", "Last"]].head())
-            #print("\nPlaylist last elements:")
-            #print(self.playlist[-2:][["Artist", "Title"]])
-            if len(suggestionlist.index) == 0:
-                print("    suggestion list empty, index decremented")
+            if (
+                index not in self.sugg_cache or
+                e.remove_played(self.sugg_cache[index], self.playlist).empty
+            ):
+                print(f" Either {index} is not listed in the playlist or is out of suggestions")
                 index -= 1
                 continue
-            place, trial = e.choose_song(suggestionlist, self.playlist)      
-            song = self.search_song(suggestionlist.at[place, "Artist"],
-                                    suggestionlist.at[place, "Album"],
-                                    suggestionlist.at[place, "Title"])
+            place, trial = e.choose_song(self.sugg_cache[index], self.playlist)
+            print(f" -- Selecting from the list with length {len(self.sugg_cache[index])}: --")
+            print(
+                self.sugg_cache[index][
+                    0:max(5, list(self.sugg_cache[index].index).index(place)+2)
+                ]
+            )
             print(f"  selected from list:  {place}")
-            self.suggestion[index]["suggestions"] = \
-                suggestionlist.drop(place).reset_index(drop=True)
+            song = self.search_song(
+                self.sugg_cache[index].at[place, "Artist"],
+                self.sugg_cache[index].at[place, "Album"],
+                self.sugg_cache[index].at[place, "Title"]
+            )
+            if not song.empty:
+                song["Place"] = self.sugg_cache[index].at[place, "Place"]
+                song["Last"] = self.sugg_cache[index].at[place, "Last"]
+                song["Trial"] = trial
+            self.sugg_cache[index] = self.sugg_cache[index].drop(place)
         if song.empty:
             lastsong = len(self.playlist) - 1
             song = self.search_song(self.playlist.at[lastsong, "Artist"],
                                     self.playlist.at[lastsong, "Album"],
                                     self.playlist.at[lastsong, "Title"])
+            song["Place"] = np.NaN
+            song["Last"] = np.NaN
+            song["Trial"] = np.NaN
         if self.songs.empty:
             self.songs = e.summarize_songlist(self.songlist)
         song = self.mergesongdata(song, self.songs)
-        newline = (song[0:1][["Artist", "Album", "Title"]])
-        if not song.empty:
-            newline["Place"] = suggestionlist.at[place, "Place"]
-            newline["Last"] = suggestionlist.at[place, "Last"]
-            newline["Trial"] = trial
-        newline = newline.rename({0: self.playlist.index[-1]+1},
-                                 axis="index")
+        newline = (song[0:1][["Artist", "Album", "Title", "Place", "Last", "Trial"]])
+        newline = newline.rename(
+            {0: last_index+1},
+            axis="index"
+        )
         newline["Date added"] = datetime.utcnow()
         self.playlist = pd.concat([self.playlist, newline])
         print("  Selected song: ")
         print(newline)
-        #print("--------------------------")
-        #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
-        #print("========================\n")
         return song
-    
-    def suggest_song(self) -> pd.DataFrame:
-        lastind = self.playlist.index[-1]
-        artist = self.playlist.at[lastind, "Artist"]
-        album = self.playlist.at[lastind, "Album"]
-        title = self.playlist.at[lastind, "Title"]
-        print("============================")
-        print(f"suggest_song after {artist}, {album}, {title}")
-        if (
-            not self.suggestion or
-            artist != self.suggestion[-1]["artist"] or
-            album != self.suggestion[-1]["album"] or
-            title != self.suggestion[-1]["title"]
-        ):
-            currsugg = {"index": lastind, "artist": artist,
-                        "album": album, "title": title}
-            #currsugg["suggestions"] = e.find_similar(self.songlist, artist,
-            #                                         title, album)
-            currsugg["suggestions"] = e.cumul_similar(self.songlist, self.playlist, cache=self.similars_cache)
-            self.suggestion.append(currsugg)
-            print(f"      (info) suggestion list added for {artist} - {title}")
-            if len(self.suggestion) > 10:
-                self.suggestion.pop(0)
-                #print("suggestion list too long: first element popped")
-        #print("----------------------------------")
-        print("current suggestion list:")
-        for i, a, t, l in zip([line["index"] for line in self.suggestion],
-                        [line["artist"] for line in self.suggestion],
-                        [line["title"] for line in self.suggestion],
-                        [len(line["suggestions"]) for line in self.suggestion]):
-            print(f"    {i}. {a} - {t} (sugg: {l} pcs.)")
-        return self.make_suggestion()
 
     def search_string(self, string: str, hide_played: bool) -> pd.DataFrame:
         if self.songs.empty:
@@ -298,10 +276,12 @@ class DataBases:
         if ((self.playlist.at[last_index, "Artist"].lower() == artist.lower()) and \
                 (self.playlist.at[last_index, "Title"].lower() == title.lower())):
             return
-        new_line = pd.DataFrame([[artist, album, title, datetime.utcnow()]],
-                                columns=["Artist", "Album", "Title",
-                                         "Date added"])
-        self.playlist = pd.concat([self.playlist, new_line]).reset_index(drop=True)
+        new_line = pd.DataFrame(
+            [[artist, album, title, datetime.utcnow()]],
+            columns=["Artist", "Album", "Title", "Date added"],
+            index=[max(self.playlist.index)+1]
+        )
+        self.playlist = pd.concat([self.playlist, new_line])
     
     def add_song(self, position, filedata, jump=False):
         #print(f"add_song position={position}, jump={jump}")
@@ -317,51 +297,46 @@ class DataBases:
         #    print(f"    {i}. {a} - {t}")
         filename, artist, album, title = \
             filedata[0], filedata[1], filedata[2], filedata[3]
-        new_line = pd.DataFrame([[artist, album, title, datetime.utcnow(),
-                                  np.NaN, np.NaN]],
-                                columns=["Artist", "Album", "Title",
-                                         "Date added", "Place", "Trial"])
-        self.playlist = pd.concat([self.playlist, new_line]).reset_index(drop=True)
+        new_line = pd.DataFrame(
+            [[artist, album, title, datetime.utcnow(), np.NaN, np.NaN]],
+            columns=["Artist", "Album", "Title", "Date added", "Place", "Trial"],
+            index=[max(self.playlist.index)+1]
+        )
+        self.playlist = pd.concat([self.playlist, new_line])
         ret_data["file"] = filename
         return ret_data
     
     def delete_song(self, delfrom, delto, jump=False):
-        #print(f"delete_song delfrom={delfrom}, delto={delto}, jump={jump}")
+        print(f"delete_song delfrom={delfrom}, delto={delto}, jump={jump}")
         if self.playlist.empty:
             return
         self.db_maintain()
-        #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
+        indeces: list[int] = list(
+            self.playlist[self.playlist.index >= self.currentplayed].index
+        )
         if delto == -1:
-            dellist = list(range(delfrom+self.currentplayed,
-                                 max(self.playlist.index)+ 1))
+            dellist = list(
+                self.playlist[
+                    self.playlist.index >= indeces[delfrom]
+                ].index
+            )
         else:
-            dellist = list(range(delfrom+self.currentplayed,
-                                 delto+self.currentplayed))
-        #print(" database deletion ", dellist)
-        #print(f" currently played: {self.currentplayed}")
-        #print("current suggestion list:")
-        #for i, a, t in zip([line["index"] for line in self.suggestion],
-        #                [line["artist"] for line in self.suggestion],
-        #                [line["title"] for line in self.suggestion]):
-        #    print(f"    {i}. {a} - {t}")
-        #print(f"  to delete {delfrom}-{delto}:", dellist)
-        newsugg = [element for element in self.suggestion if
-                   not element["index"] in dellist]
-        if len(newsugg) > 0:
-            index = newsugg[0]["index"]
-            for element in newsugg[1:]:
-                element["index"] = index + 1
-                index += 1
-            self.suggestion = newsugg
-        else:
-            self.suggestion = []
-        #print("new suggestion list:")
-        #for i, a, t in zip([line["index"] for line in newsugg],
-        #                [line["artist"] for line in newsugg],
-        #                [line["title"] for line in newsugg]):
-        #    print(f"    {i}. {a} - {t}")
-        self.playlist = self.playlist.drop(dellist).reset_index(drop=True)
-        #print(self.playlist[-10:][["Artist", "Title", "Place", "Trial"]])
+            dellist = list(
+                self.playlist[
+                    (self.playlist.index >= indeces[delfrom]) &
+                    (self.playlist.index < indeces[delto])
+                ].index
+            )
+        print(f"  Deleting indexes {dellist}")
+        for todel in dellist:
+            if todel not in self.sugg_cache.keys():
+                continue
+            self.sugg_cache.pop(todel)
+        self.playlist = self.playlist.drop(dellist)
+        if delfrom == 0:
+            self.currentplayed = (
+                max(self.playlist[self.playlist.index < self.currentplayed].index)
+            )
         return pd.DataFrame([{"delfrom": delfrom, "delto": delto,
                               "jump": jump}])
     
@@ -380,17 +355,15 @@ class DataBases:
             c_album = ""
         c_title = currentsong["title"].replace(",", "")
         line = self.currentplayed
-        #print("Assumed current played: ", self.currentplayed)
-        #print(self.playlist[-5:][["Artist", "Title", "Place", "Trial"]])
-        #print(f"Currently played: {c_artist} - {c_title}")
         while line < max(self.playlist.index) and line > -1:
             if not isinstance(self.playlist.at[line, "Album"], str):
                self.playlist.at[line, "Album"] = ""
-            if c_artist.lower() == self.playlist.at[line, "Artist"].lower() and \
-                c_title.lower() == self.playlist.at[line, "Title"].lower() and \
-                c_album.lower() == self.playlist.at[line, "Album"].lower():
+            if (
+                c_artist.lower() == self.playlist.at[line, "Artist"].lower() and
+                c_title.lower() == self.playlist.at[line, "Title"].lower() and
+                c_album.lower() == self.playlist.at[line, "Album"].lower()
+            ):
                     self.currentplayed = line
-                    #print("Currently played set to: ", self.currentplayed)
                     break
             line += 1
         # Registering the currently playing song on the songs list
