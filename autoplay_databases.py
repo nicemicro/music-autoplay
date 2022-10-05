@@ -14,7 +14,11 @@ from mpd_wrapper import MPD
 #%%
 
 class DataBases:
-    def __init__(self, filename):        
+    def __init__(self, filename):
+        pd.options.display.max_colwidth = 25
+        pd.options.display.width = 120
+        e.pd.options.display.expand_frame_repr = False
+
         self.songlist = pd.DataFrame([])
         self.artists = pd.DataFrame([])
         self.albums = pd.DataFrame([])
@@ -356,6 +360,9 @@ class DataBases:
         c_title = currentsong["title"].replace(",", "")
         line = self.currentplayed
         while line < max(self.playlist.index) and line > -1:
+            if line not in self.playlist.index:
+                line += 1
+                continue
             if not isinstance(self.playlist.at[line, "Album"], str):
                self.playlist.at[line, "Album"] = ""
             if (
