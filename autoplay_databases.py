@@ -97,25 +97,36 @@ class DataBases:
         self.plstartindex = 0
         self.plendindex = 0
 
-    def mergesongdata(self, new_list: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
-        if new_list.empty or songs.empty: return pd.DataFrame([])
+    def mergesongdata(self, music_file_list: pd.DataFrame) -> pd.DataFrame:
+        """
+        Merges the song list coming from MPD (music_file_list) with the list coming from the
+        database (songs).
+        """
+        if music_file_list.empty: return pd.DataFrame([])
+        music_file_list = music_file_list.reset_index(drop=True)
+        music_file_list = music_file_list.reset_index(drop=False)
         for dictkey in ["artist", "album", "title"]:
-            if dictkey not in new_list.columns:
-                new_list[dictkey] = ""
-                new_list[dictkey+"_l"] = ""
+            if dictkey not in music_file_list.columns:
+                music_file_list[dictkey] = ""
+                music_file_list[dictkey+"_l"] = ""
                 continue
-            new_list[dictkey+"_l"] = new_list[dictkey].str.lower()
-            new_list[dictkey+"_l"] = new_list[dictkey+"_l"].str.replace(",", "")
-        for dictkey in ["Artist", "Album", "Title"]:
-            if dictkey not in songs.columns:
-                songs[dictkey] = ""
-                songs[dictkey.lower()+"_l"] = ""
-                continue
-            songs[dictkey.lower()+"_l"] = songs[dictkey].str.lower()
-        #new_list.to_csv("new_list.csv")
-        #songs.to_csv("songs.csv")
-        #pd.merge(new_list, songs, how="left", on=["artist_l", "title_l"]).to_csv("merged.csv")
-        result = pd.merge(new_list, songs, how="left", on=["artist_l", "album_l" ,"title_l"])
+            music_file_list[dictkey+"_l"] = music_file_list[dictkey].str.lower()
+            music_file_list[dictkey+"_l"] = music_file_list[dictkey+"_l"].str.replace(",", "")
+        #music_file_list.to_csv("music_file_list.csv")
+        withalbum = self.songs[(self.songs["album_l"]) != ""]
+        noalbum = self.songs[(self.songs["album_l"]) == ""]
+        withalbum = pd.merge(music_file_list, withalbum, how="inner", on=["artist_l", "album_l" ,"title_l"])
+        withalbum = withalbum.set_index("index")
+        noalbum = pd.merge(music_file_list, noalbum, how="inner", on=["artist_l", "title_l"])
+        noalbum = noalbum.set_index("index")
+        all_found = pd.concat([noalbum, withalbum])
+        result = pd.merge(
+            music_file_list.set_index("index"),
+            all_found[["Played last", "Added first", "Played"]],
+            how="left",
+            left_index=True,
+            right_index=True
+        )
         result["Artist"] = result["artist"].str.replace(",", "")
         result["Album"] = result["album"].str.replace(",", "")
         result["Title"] = result["title"].str.replace(",", "")
@@ -125,7 +136,7 @@ class DataBases:
         index = self.plendindex
         songs = self.playablelist
         new_list = pd.DataFrame([])
-        while len(new_list.index) < num and index < len(songs.index):            
+        while len(new_list.index) < num and index < len(songs.index):
             song = self.search_song(songs.at[index, "Artist"],
                                     songs.at[index, "Album"],
                                     songs.at[index, "Title"])
@@ -135,7 +146,7 @@ class DataBases:
         if len(new_list.index) > 0:
             self.plstartindex = self.plendindex
             self.plendindex = index
-        new_list = self.mergesongdata(new_list, songs)
+        new_list = self.mergesongdata(new_list)
         return new_list
     
     def list_songs_bck(self, num):
@@ -152,7 +163,7 @@ class DataBases:
         if len(new_list.index) > 0:
             self.plendindex = self.plstartindex
             self.plstartindex = index
-        new_list = self.mergesongdata(new_list, songs)
+        new_list = self.mergesongdata(new_list)
         return new_list
     
     def suggest_song(self) -> pd.DataFrame:
@@ -201,9 +212,7 @@ class DataBases:
             song["Place"] = np.NaN
             song["Last"] = np.NaN
             song["Trial"] = np.NaN
-        if self.songs.empty:
-            self.songs = e.summarize_songlist(self.songlist)
-        song = self.mergesongdata(song, self.songs)
+        song = self.mergesongdata(song)
         newline = (song[0:1][["Artist", "Album", "Title", "Place", "Last", "Trial"]])
         newline = newline.rename(
             {0: last_index+1},
@@ -216,8 +225,6 @@ class DataBases:
         return song
 
     def search_string(self, string: str, hide_played: bool) -> pd.DataFrame:
-        if self.songs.empty:
-            self.songs = e.summarize_songlist(self.songlist)
         keys: list[str] = string.split(" ")
         result_list: list[dict[str, str]]
         if len(keys) == 1 and len(keys[0]) <= 2:
@@ -229,7 +236,7 @@ class DataBases:
             result_list = self.music.search(*search_list)
         if not result_list:
             return pd.DataFrame([])
-        result = self.mergesongdata(pd.DataFrame(result_list), self.songs)
+        result = self.mergesongdata(pd.DataFrame(result_list))
         if hide_played:
             #result.to_csv("result.csv")
             #e.remove_played(result, self.playlist).to_csv("result_cut.csv")
@@ -258,7 +265,7 @@ class DataBases:
                                         partial.at[index2, "Album"],
                                         partial.at[index2, "Title"])
                 result = pd.concat([result, song[0:1]])
-        new_list = self.mergesongdata(result, full)
+        new_list = self.mergesongdata(result)
         new_list = new_list.reset_index(drop=True)
         return new_list
     
@@ -383,11 +390,13 @@ class DataBases:
             fname = "data"
         self.songlist, self.artists, self.albums, self.playlist = \
             e.load_data(fname)
+        self.songs = e.summarize_songlist(self.songlist)
     
     def save_file(self, fname=""):
         if fname == "":
             fname= "data"
         #print("Start file save")
-        e.save_data(self.songlist, self.artists, self.albums, self.playlist,
-                    fname)
+        e.save_data(
+            self.songlist, self.artists, self.albums, self.playlist, fname
+        )
         #print("Save complete")

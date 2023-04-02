@@ -133,7 +133,7 @@ class Not_played(ttk.Frame):
                    command= lambda: self.controller.prev_page()) \
             .grid(row=2, column=0, columnspan=1)
         ttk.Button(self, text="Recently added",
-                   command= lambda: self.controller.switch_page("new add", 3,
+                   command= lambda: self.controller.switch_page("new add", 1,
                                                                 15)) \
             .grid(row=2, column=1, columnspan=1)
         ttk.Button(self, text="Not played recently",

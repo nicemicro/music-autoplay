@@ -815,11 +815,11 @@ def remove_played(
 def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     result: pd.DataFrame
     songlist = songlist.copy()
-    songlist["Artist_low"] = songlist["Artist"].str.lower()
-    songlist["Title_low"] = songlist["Title"].str.lower()
-    songlist["Album_low"] = songlist["Album"].str.lower().fillna("")
+    songlist["artist_l"] = songlist["Artist"].str.lower()
+    songlist["title_l"] = songlist["Title"].str.lower()
+    songlist["album_l"] = songlist["Album"].str.lower().fillna("")
     artist_songs = songlist.groupby(
-        ["Artist_low", "Album_low", "Title_low"]
+        ["artist_l", "album_l", "title_l"]
     ).agg(
         {
             "Scrobble time": ["count", "max", "min"],
@@ -830,9 +830,9 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     )
     songs = artist_songs.reset_index(drop=False).set_axis(
         [
-            "Artist_low",
-            "Album_low",
-            "Title_low",
+            "artist_l",
+            "album_l",
+            "title_l",
             "Played",
             "Played last",
             "Added first",
@@ -845,18 +845,18 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     )
     no_album = songs[(songs["Album"].isna())]
     with_album = songs[(songs["Album"].notna())]
-    bestalbum = with_album.groupby(["Artist_low", "Title_low"]).agg(
+    bestalbum = with_album.groupby(["artist_l", "title_l"]).agg(
         {"Played": ["max"]}
     ).reset_index().set_axis(
-        ["Artist_low", "Title_low", "Played"], axis=1, inplace=False
+        ["artist_l", "title_l", "Played"], axis=1, inplace=False
     )
     bestalbum = pd.merge(
-        with_album, bestalbum, on=["Artist_low", "Title_low", "Played"], how="right"
+        with_album, bestalbum, on=["artist_l", "title_l", "Played"], how="right"
     )
     no_album = pd.merge(
-        bestalbum, no_album, on=["Artist_low", "Title_low"], how="right"
+        bestalbum, no_album, on=["artist_l", "title_l"], how="right"
     )
-    no_album["Album_low"] = no_album["Album_low_x"].fillna("")
+    no_album["album_l"] = no_album["album_l_x"].fillna("")
     no_album["Played"] = (
         no_album["Played_x"].fillna(0) +
         no_album["Played_y"].fillna(0)
@@ -872,19 +872,22 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
         "Played last",
         "Added first",
         "Played",
-        "Artist_low",
-        "Album_low",
-        "Title_low"
+        "artist_l",
+        "album_l",
+        "title_l"
     ]]
     overwrite = pd.merge(
-        with_album, no_album[["Artist_low", "Album_low", "Title_low"]], how="inner"
+        with_album, no_album[["artist_l", "album_l", "title_l"]], how="inner"
     )
     overwrite[["Over"]] = True
     overwrite = pd.merge(with_album, overwrite, how="left")
     result = pd.concat(
         [overwrite[(overwrite["Over"].isna())], no_album]
     ).sort_values(["Artist", "Album", "Title"]).reset_index(drop=True)
-    return result[["Artist", "Album", "Title", "Played", "Played last", "Added first"]]
+    return result[[
+        "Artist", "Album", "Title", "Played", "Played last",
+        "Added first", "artist_l", "album_l", "title_l"
+    ]]
 
 #%%
 def find_not_played(
