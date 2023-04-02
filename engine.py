@@ -225,7 +225,7 @@ def find_similar(
         .agg({"Scrobble time": ["max"], "Point": ["sum"]})
         .reset_index()
         .set_axis(
-            ["Artist", "Album", "Title", "Played last", "Point"], axis=1, inplace=False
+            ["Artist", "Album", "Title", "Played last", "Point"], axis=1
         )
     )
     result_sum = result_sum[(result_sum["Point"] > 0)].sort_values(
@@ -281,7 +281,7 @@ def find_similar_artist(
         .reset_index()
     )
     result_sum = result_sum.set_axis(
-        ["Artist", "Played last", "Point"], axis=1, inplace=False
+        ["Artist", "Played last", "Point"], axis=1
     )
     result_sum = result_sum[(result_sum["Point"] > 0)].sort_values(
         by=["Point", "Played last"], ascending=[False, False]
@@ -841,14 +841,14 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
             "Title",
         ],
         axis=1,
-        inplace=False,
     )
     no_album = songs[(songs["Album"].isna())]
     with_album = songs[(songs["Album"].notna())]
-    bestalbum = with_album.groupby(["artist_l", "title_l"]).agg(
-        {"Played": ["max"]}
-    ).reset_index().set_axis(
-        ["artist_l", "title_l", "Played"], axis=1, inplace=False
+    bestalbum = (
+        with_album.groupby(["artist_l", "title_l"])
+        .agg({"Played": ["max"]})
+        .reset_index()
+        .set_axis(["artist_l", "title_l", "Played"], axis=1)
     )
     bestalbum = pd.merge(
         with_album, bestalbum, on=["artist_l", "title_l", "Played"], how="right"
@@ -960,7 +960,6 @@ def find_not_played(
                     "Title",
                 ],
                 axis=1,
-                inplace=False,
             )
         else:
             artist_songs = songlist.groupby(["Artist_low", "Title_low"]).agg(
@@ -983,7 +982,6 @@ def find_not_played(
                     "Title",
                 ],
                 axis=1,
-                inplace=False,
             )
     else:
         if album == "":
@@ -1009,7 +1007,6 @@ def find_not_played(
                         "Title",
                     ],
                     axis=1,
-                    inplace=False,
                 )
             else:
                 artist_songs = artist_songs.groupby(["Title_low"]).agg(
@@ -1031,7 +1028,6 @@ def find_not_played(
                         "Title",
                     ],
                     axis=1,
-                    inplace=False,
                 )
         else:
             artist_songs = (
@@ -1060,7 +1056,6 @@ def find_not_played(
                     "Title",
                 ],
                 axis=1,
-                inplace=False,
             )
     if artist_songs.empty:
         print("Error")
@@ -1102,7 +1097,7 @@ def find_old_song(
         .groupby(["Artist", "Title"])
         .agg({"Scrobble time": ["count", "max"]})
         .reset_index(drop=False)
-        .set_axis(["Artist", "Title", "Played", "Played last"], axis=1, inplace=False)
+        .set_axis(["Artist", "Title", "Played", "Played last"], axis=1)
     )
     old_songs = old_songs[(old_songs["Played last"] < date)]
     merged = remove_played(old_songs, playlist)
