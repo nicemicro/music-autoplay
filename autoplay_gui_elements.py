@@ -40,7 +40,8 @@ class Player(ttk.Frame):
             orient="horizontal",
             from_=0, to=100,
             variable=self.song_percentage,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            command=self.scrub_position
         )
         self.percentage_scale.grid(row=2, column=0, columnspan=5, sticky="ew")
         ttk.Button(self, text="Play / Pause", command=self.playpause) \
@@ -82,6 +83,9 @@ class Player(ttk.Frame):
 
     def step_next(self):
         self.controller.play_next(self.selection())
+
+    def scrub_position(self, scrub_to):
+        self.controller.scrub_to_percent(float(scrub_to))
 
     def set_now_play(self, playlist):
         positions = [song["pos"] for song in playlist]

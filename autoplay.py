@@ -76,6 +76,9 @@ class AppContainer(tk.Tk):
 
     def volume(self, change):
         self.music_handler.volume(change)
+
+    def scrub_to_percent(self, percent: float) -> None:
+        self.music_handler.scrub_to_percent(percent)
     
     def list_choices(self):
         assert self.selectable is not None

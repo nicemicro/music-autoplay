@@ -302,6 +302,13 @@ class MusicHandler():
     def volume(self, change: float) -> None:
         volumelevel = int(self.music.status()["volume"])
         self.music.volume(volumelevel + change)
+
+    def scrub_to_percent(self, percent: float) -> None:
+        status = self.music.status()
+        if "time" not in status.keys():
+            return
+        total = float(status["time"].split(":")[1])
+        self.music.seekcur(total * percent / 100)
     
     def songlist_page_switch(self, listsize: int, forward: bool = True) -> None:
         if forward:
