@@ -394,10 +394,15 @@ class MusicHandler():
                 songdata["album"] = ""
             songdata["status"] = ""
         if len(playlistend) == 0:
-            playlistend = [{"display": "STOPPED", "album": "", "status": "",
+            playlistend = [{"display": "", "album": "", "status": "STOPPED",
                              "pos": "-1", "id": "-1"}]
         else:
             playlistend[0]["status"] = "(" + status["state"].upper() + ")"
+        playlistend[0]["mpdstate"] = status["state"]
+        if "time" in status.keys():
+            playlistend[0]["mpdtime"] = status["time"]
+        else:
+            playlistend[0]["mpdtime"] = "0:1"
         return playlistend
     
     def db_maintain(self) -> None:

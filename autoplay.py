@@ -142,14 +142,7 @@ class AppContainer(tk.Tk):
     #        self.playerframe.set_next_play(text="Next up: ")
 
     def update_current_played(self):
-        #self.update_next_played()
         current = self.music_handler.song_played()
-        #if current["state"] == "stop":
-        #    self.playerframe.set_now_play({"display": "[Stopped]"})
-        #    self.after(500, self.update_current_played)
-        #    return
-        #current_text = current["artist"] + " - " + current["title"]
-
         self.playerframe.set_now_play(current)
         self.after(500, self.update_current_played)
     

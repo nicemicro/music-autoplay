@@ -34,18 +34,27 @@ class Player(ttk.Frame):
         #self.nextplaylabel = ttk.Label(self, textvariable=self.nextplaytext, 
         #                              justify=tk.CENTER)
         #self.nextplaylabel.grid(row=1, column=0, columnspan=5)
+        self.song_percentage = tk.DoubleVar(self, 0)
+        self.percentage_scale = ttk.Scale(
+            self,
+            orient="horizontal",
+            from_=0, to=100,
+            variable=self.song_percentage,
+            state=tk.DISABLED
+        )
+        self.percentage_scale.grid(row=2, column=0, columnspan=5, sticky="ew")
         ttk.Button(self, text="Play / Pause", command=self.playpause) \
-            .grid(row=2, column=0, columnspan=1)
+            .grid(row=3, column=0, columnspan=1)
         ttk.Button(self, text="Change song", command=self.new_search) \
-            .grid(row=2, column=1, columnspan=1)
+            .grid(row=3, column=1, columnspan=1)
         ttk.Button(self, text="Next song", command=self.step_next) \
-            .grid(row=2, column=2, columnspan=1)
+            .grid(row=3, column=2, columnspan=1)
         ttk.Button(self, text="+",
                    command= lambda: self.controller.volume(+5)) \
-            .grid(row=2, column=3, columnspan=1)
+            .grid(row=3, column=3, columnspan=1)
         ttk.Button(self, text="-",
                    command= lambda: self.controller.volume(-5)) \
-            .grid(row=2, column=4, columnspan=1)
+            .grid(row=3, column=4, columnspan=1)
         
         self.columnconfigure(0, weight = 1)
         self.columnconfigure(1, weight = 1)
@@ -75,25 +84,36 @@ class Player(ttk.Frame):
         self.controller.play_next(self.selection())
 
     def set_now_play(self, playlist):
-        #print("text: ", text)
         positions = [song["pos"] for song in playlist]
         elements = self.playlistbox.get_children()
         el_to_del = [pos for pos in elements if not (pos in positions)]
         for element in el_to_del:
-            #print("Delete element ", element)
             self.playlistbox.delete(element)
-        #new_el_pos = [pos for pos in positions if not (pos in elements)]
-        #new_el = [song for song in playlist if song["pos"] in new_el_pos]
         for songinfo in playlist:
             if songinfo["pos"] in elements:
-                self.playlistbox.item(songinfo["pos"],
-                                      text=songinfo["display"],
-                                      values=(songinfo["album"],
-                                              songinfo["status"]))
+                self.playlistbox.item(
+                    songinfo["pos"],
+                    text=songinfo["display"],
+                    values=(songinfo["album"],
+                    songinfo["status"])
+                )
             else:
-                self.playlistbox.insert("", "end", iid=songinfo["pos"], \
-                    text=songinfo["display"], values=(songinfo["album"], \
-                    songinfo["status"]))
+                self.playlistbox.insert(
+                    "", "end", iid=songinfo["pos"],
+                    text=songinfo["display"],
+                    values=(songinfo["album"],
+                    songinfo["status"])
+                )
+        if playlist[0]["mpdstate"] == "stop":
+            self.song_percentage.set(0)
+        else:
+            elapsed = int(playlist[0]["mpdtime"].split(":")[0])
+            total = int(playlist[0]["mpdtime"].split(":")[1])
+            self.song_percentage.set(elapsed / (total + 0.01) * 100)
+        if playlist[0]["mpdstate"] == "stop" or playlist[0]["mpdstate"] == "pause":
+            self.percentage_scale.configure(state=tk.DISABLED)
+        if playlist[0]["mpdstate"] == "play":
+            self.percentage_scale.configure(state=tk.NORMAL)
 
 class Not_played(ttk.Frame):
     def __init__(self, parent, controller):
