@@ -44,6 +44,9 @@ class DataBases:
         artist = artist.replace(",", "")
         album = album.replace(",", "")
         title = title.replace(",", "")
+        artist = artist.replace("\"", "")
+        album = album.replace("\"", "")
+        title = title.replace("\"", "")
         s_strings = []
         
         for word in [w for w in title.split(" ") if len(w) > 2]:
@@ -76,19 +79,30 @@ class DataBases:
                 result[0]["album"] = ""
             result = pd.DataFrame(result)
             if strict:
-                if result["artist"].str.lower().str.replace(",", "")[0] != artist.lower():
+                if (
+                    result["artist"].str.lower().str.replace(",", "").str.replace("\"", "")[0] != artist.lower()
+                ):
                     return pd.DataFrame()
-                if album and result["album"].str.lower().str.replace(",", "")[0] != album.lower():
+                if (
+                    album and
+                    result["album"].str.lower().str.replace(",", "").str.replace("\"", "")[0] != album.lower()
+                ):
                     return pd.DataFrame()
-                if result["title"].str.lower().str.replace(",", "")[0] != title.lower():
+                if (
+                    result["title"].str.lower().str.replace(",", "").str.replace("\"", "")[0] != title.lower()
+                ):
                     return pd.DataFrame()
             return result
         #print(f"Search: {artist}-{album}, found {len(result)}")
         if not "album" in result[0]:
             result[0]["album"] = ""
         result = pd.DataFrame(result)
-        result = result[(result["title"].str.replace(",", "").str.lower() == title.lower())]
-        result = result[(result["artist"].str.replace(",", "").str.lower() == artist.lower())]
+        result = result[
+            (result["title"].str.replace(",", "").str.replace("\"", "").str.lower() == title.lower())
+        ]
+        result = result[
+            (result["artist"].str.replace(",", "").str.replace("\"", "").str.lower() == artist.lower())
+        ]
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
@@ -105,7 +119,7 @@ class DataBases:
                 new_list[dictkey+"_l"] = ""
                 continue
             new_list[dictkey+"_l"] = new_list[dictkey].str.lower()
-            new_list[dictkey+"_l"] = new_list[dictkey+"_l"].str.replace(",", "")
+            new_list[dictkey+"_l"] = new_list[dictkey+"_l"].str.replace(",", "").str.replace("\"", "")
         for dictkey in ["Artist", "Album", "Title"]:
             if dictkey not in songs.columns:
                 songs[dictkey] = ""
@@ -116,9 +130,9 @@ class DataBases:
         #songs.to_csv("songs.csv")
         #pd.merge(new_list, songs, how="left", on=["artist_l", "title_l"]).to_csv("merged.csv")
         result = pd.merge(new_list, songs, how="left", on=["artist_l", "album_l" ,"title_l"])
-        result["Artist"] = result["artist"].str.replace(",", "")
-        result["Album"] = result["album"].str.replace(",", "")
-        result["Title"] = result["title"].str.replace(",", "")
+        result["Artist"] = result["artist"].str.replace(",", "").str.replace("\"", "")
+        result["Album"] = result["album"].str.replace(",", "").str.replace("\"", "")
+        result["Title"] = result["title"].str.replace(",", "").str.replace("\"", "")
         return result
 
     def list_songs_fwd(self, num: int):
@@ -352,12 +366,12 @@ class DataBases:
         currentsong = self.music.currentsong()
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
-        c_artist = currentsong["artist"].replace(",", "")
+        c_artist = currentsong["artist"].replace(",", "").replace("\"", "")
         if "album" in currentsong:
-            c_album = currentsong["album"].replace(",", "")
+            c_album = currentsong["album"].replace(",", "").replace("\"", "")
         else:
             c_album = ""
-        c_title = currentsong["title"].replace(",", "")
+        c_title = currentsong["title"].replace(",", "").replace("\"", "")
         line = self.currentplayed
         while line < max(self.playlist.index) and line > -1:
             if line not in self.playlist.index:
