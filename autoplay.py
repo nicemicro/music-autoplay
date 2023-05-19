@@ -48,6 +48,7 @@ class AppContainer(tk.Tk):
         self.suggestionlist: bool = False
         self.selectable: Optional[apmh.pd.DataFrame] = None
         self.switch_page("new add", 1, 15)
+        self.switch_page("new add", 0, 15)
         self.searchresult: Optional[apmh.pd.DataFrame] = None
 
         self.after(500, self.update_current_played)
