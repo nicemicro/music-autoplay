@@ -6,11 +6,14 @@ Created on Sun Oct  3 20:35:00 2021
 @author: nicemicro
 """
 
-import pandas as pd
-import numpy as np
-import engine as e
 from datetime import datetime
+
+import numpy as np
+import pandas as pd
+
+import engine as e
 from mpd_wrapper import MPD
+
 #%%
 
 class DataBases:
@@ -39,8 +42,11 @@ class DataBases:
         self.music.timeout = 100              # network timeout in seconds
         self.music.idletimeout = None         # for fetching the result of idle command
         self.music.connect("localhost", 6600)
-    
+
     def search_song(self, artist, album, title, strict=True):
+        """
+        Searches for songs with artist, album and title given, in the MPD database
+        """
         artist = artist.replace(",", "")
         album = album.replace(",", "")
         title = title.replace(",", "")
@@ -48,7 +54,7 @@ class DataBases:
         album = album.replace("\"", "")
         title = title.replace("\"", "")
         s_strings = []
-        
+
         for word in [w for w in title.split(" ") if len(w) > 2]:
             s_strings.append("title")
             s_strings.append(word)
@@ -67,29 +73,32 @@ class DataBases:
             s_strings.append(word)
         if len(s_strings) > 40:
             s_strings = s_strings[0:40]
-        
+
         result = self.music.search(*s_strings)
         if len(result) == 0:
             result = self.music.search(*s_strings2)
         if len(result) == 0:
             return pd.DataFrame(result)
-        elif len(result) == 1:
+        if len(result) == 1:
             #print(f"Search: {artist}-{album}, found {len(result)}")
             if not "album" in result[0]:
                 result[0]["album"] = ""
             result = pd.DataFrame(result)
             if strict:
                 if (
-                    result["artist"].str.lower().str.replace(",", "").str.replace("\"", "")[0] != artist.lower()
+                    result["artist"].str.lower().str.replace(",", "").
+                    str.replace("\"", "")[0] != artist.lower()
                 ):
                     return pd.DataFrame()
                 if (
                     album and
-                    result["album"].str.lower().str.replace(",", "").str.replace("\"", "")[0] != album.lower()
+                    result["album"].str.lower().str.replace(",", "").
+                    str.replace("\"", "")[0] != album.lower()
                 ):
                     return pd.DataFrame()
                 if (
-                    result["title"].str.lower().str.replace(",", "").str.replace("\"", "")[0] != title.lower()
+                    result["title"].str.lower().str.replace(",", "").
+                    str.replace("\"", "")[0] != title.lower()
                 ):
                     return pd.DataFrame()
             return result
@@ -98,16 +107,19 @@ class DataBases:
             result[0]["album"] = ""
         result = pd.DataFrame(result)
         result = result[
-            (result["title"].str.replace(",", "").str.replace("\"", "").str.lower() == title.lower())
+            (result["title"].str.replace(",", "").str.replace("\"", "").str.lower()
+            == title.lower())
         ]
         result = result[
-            (result["artist"].str.replace(",", "").str.replace("\"", "").str.lower() == artist.lower())
+            (result["artist"].str.replace(",", "").str.replace("\"", "").str.lower()
+            == artist.lower())
         ]
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
-        self.playablelist = e.find_not_played(self.songlist, self.playlist,
-                *args, **kwargs)
+        self.playablelist = e.find_not_played(
+            self.songlist, self.playlist, *args, **kwargs
+        )
         self.plstartindex = 0
         self.plendindex = 0
 
@@ -116,7 +128,8 @@ class DataBases:
         Merges the song list coming from MPD (music_file_list) with the list coming from the
         database (songs).
         """
-        if music_file_list.empty: return pd.DataFrame([])
+        if music_file_list.empty:
+            return pd.DataFrame([])
         music_file_list = music_file_list.reset_index(drop=True)
         music_file_list = music_file_list.reset_index(drop=False)
         for dictkey in ["artist", "album", "title"]:
@@ -125,22 +138,26 @@ class DataBases:
                 music_file_list[dictkey+"_l"] = ""
                 continue
             music_file_list[dictkey+"_l"] = music_file_list[dictkey].str.lower()
-            music_file_list[dictkey+"_l"] = music_file_list[dictkey+"_l"].str.replace(",", "").str.replace("\"", "")
+            music_file_list[dictkey+"_l"] = (
+                music_file_list[dictkey+"_l"].str.replace(",", "").str.replace("\"", "")
+            )
         #music_file_list.to_csv("music_file_list.csv")
         withalbum = self.songs[(self.songs["album_l"]) != ""]
         noalbum = self.songs[(self.songs["album_l"]) == ""]
-        withalbum = pd.merge(music_file_list, withalbum, how="inner", on=["artist_l", "album_l" ,"title_l"])
+        withalbum = pd.merge(
+            music_file_list, withalbum, how="inner", on=["artist_l", "album_l" ,"title_l"]
+        )
         withalbum = withalbum.set_index("index")
         noalbum = pd.merge(music_file_list, noalbum, how="inner", on=["artist_l", "title_l"])
         noalbum = noalbum.set_index("index")
         all_found = pd.concat([noalbum, withalbum])
         result = pd.merge(
-            music_file_list.set_index("index"),
-            all_found[["Played last", "Added first", "Played"]],
-            how="left",
-            left_index=True,
-            right_index=True
-        )
+                music_file_list.set_index("index"),
+                all_found[["Played last", "Added first", "Played"]],
+                how="left",
+                left_index=True,
+                right_index=True
+                )
         result["Artist"] = result["artist"].str.replace(",", "").str.replace("\"", "")
         result["Album"] = result["album"].str.replace(",", "").str.replace("\"", "")
         result["Title"] = result["title"].str.replace(",", "").str.replace("\"", "")
@@ -152,8 +169,8 @@ class DataBases:
         new_list = pd.DataFrame([])
         while len(new_list.index) < num and index < len(songs.index):
             song = self.search_song(songs.at[index, "Artist"],
-                                    songs.at[index, "Album"],
-                                    songs.at[index, "Title"])
+                    songs.at[index, "Album"],
+                    songs.at[index, "Title"])
             if len(song.index) > 0:
                 new_list = pd.concat([new_list, song[0:1]])
             index += 1
@@ -162,7 +179,7 @@ class DataBases:
             self.plendindex = index
         new_list = self.mergesongdata(new_list)
         return new_list
-    
+
     def list_songs_bck(self, num):
         index = self.plstartindex
         songs = self.playablelist
@@ -170,8 +187,8 @@ class DataBases:
         while len(new_list.index) < num and index > 0:
             index -= 1
             song = self.search_song(songs.at[index, "Artist"],
-                                    songs.at[index, "Album"],
-                                    songs.at[index, "Title"])
+                    songs.at[index, "Album"],
+                    songs.at[index, "Title"])
             if len(song.index) > 0:
                 new_list = pd.concat([song[0:1], new_list])
         if len(new_list.index) > 0:
@@ -179,7 +196,7 @@ class DataBases:
             self.plstartindex = index
         new_list = self.mergesongdata(new_list)
         return new_list
-    
+
     def suggest_song(self) -> pd.DataFrame:
         song = pd.DataFrame()
         last_index = max(self.playlist.index)
@@ -287,7 +304,7 @@ class DataBases:
         return
         # TODO fix this, whatever's wrong with it
         if (
-            (self.songlist.at[0, "artist"].lower() == artist.lower()) and 
+            (self.songlist.at[0, "artist"].lower() == artist.lower()) and
             (self.songlist.at[0, "title"].lower() == title.lower())
         ):
             return
@@ -296,18 +313,22 @@ class DataBases:
                                          "Scrobble time"])
         self.songlist = pd.concat([new_line, self.songlist]).reset_index(drop=True)
     
-    def playlist_append(self, artist, album, title):        
+    def playlist_append(self, artist, album, title):
         last_index = self.playlist.index[-1]
         if ((self.playlist.at[last_index, "Artist"].lower() == artist.lower()) and \
                 (self.playlist.at[last_index, "Title"].lower() == title.lower())):
             return
+        if len(self.playlist.index) == 0:
+            index = 0
+        else:
+            index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
             [[artist, album, title, datetime.utcnow()]],
             columns=["Artist", "Album", "Title", "Date added"],
-            index=[max(self.playlist.index)+1]
+            index=[index]
         )
         self.playlist = pd.concat([self.playlist, new_line])
-    
+
     def add_song(self, position, filedata, jump=False):
         #print(f"add_song position={position}, jump={jump}")
         if position != -1:
@@ -320,17 +341,22 @@ class DataBases:
         #                [line["artist"] for line in self.suggestion],
         #                [line["title"] for line in self.suggestion]):
         #    print(f"    {i}. {a} - {t}")
-        filename, artist, album, title = \
+        filename, artist, album, title = (
             filedata[0], filedata[1], filedata[2], filedata[3]
+        )
+        if len(self.playlist.index) == 0:
+            index = 0
+        else:
+            index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
             [[artist, album, title, datetime.utcnow(), np.NaN, np.NaN]],
             columns=["Artist", "Album", "Title", "Date added", "Place", "Trial"],
-            index=[max(self.playlist.index)+1]
+            index=[index]
         )
         self.playlist = pd.concat([self.playlist, new_line])
         ret_data["file"] = filename
         return ret_data
-    
+
     def delete_song(self, delfrom, delto, jump=False):
         print(f"delete_song delfrom={delfrom}, delto={delto}, jump={jump}")
         if self.playlist.empty:
@@ -359,12 +385,15 @@ class DataBases:
             self.sugg_cache.pop(todel)
         self.playlist = self.playlist.drop(dellist)
         if delfrom == 0:
-            self.currentplayed = (
-                max(self.playlist[self.playlist.index < self.currentplayed].index)
-            )
+            if len(self.playlist[self.playlist.index < self.currentplayed].index) == 0:
+                self.currentplayed = -1
+            else:
+                self.currentplayed = (
+                    max(self.playlist[self.playlist.index < self.currentplayed].index)
+                )
         return pd.DataFrame([{"delfrom": delfrom, "delto": delto,
                               "jump": jump}])
-    
+
     def db_maintain(self):
         status = self.music.status()
         if status["state"] != "play":
@@ -391,21 +420,21 @@ class DataBases:
                 c_title.lower() == self.playlist.at[line, "Title"].lower() and
                 c_album.lower() == self.playlist.at[line, "Album"].lower()
             ):
-                    self.currentplayed = line
-                    break
+                self.currentplayed = line
+                break
             line += 1
         # Registering the currently playing song on the songs list
         if elapsed > 180 or elapsed > duration / 2:
             self.songlist_append(c_artist, c_album, c_title)
         #print("End DB maintain...")
-            
+
     def load_file(self, fname=""):
         if fname == "":
             fname = "data"
         self.songlist, self.artists, self.albums, self.playlist = \
             e.load_data(fname)
         self.songs = e.summarize_songlist(self.songlist)
-    
+
     def save_file(self, fname=""):
         if fname == "":
             fname= "data"
