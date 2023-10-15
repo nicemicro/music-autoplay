@@ -57,10 +57,10 @@ class DataBases:
 
         for word in [w for w in title.split(" ") if len(w) > 2]:
             s_strings.append("title")
-            s_strings.append(word)
+            s_strings.append(word.replace(":", ""))
         for word in [w for w in artist.split(" ") if len(w) > 2]:
             s_strings.append("artist")
-            s_strings.append(word)
+            s_strings.append(word.replace(":", ""))
         if len(s_strings) == 0:
             return pd.DataFrame()
         s_strings2 = s_strings.copy()
@@ -70,7 +70,7 @@ class DataBases:
             s_strings = s_strings[0:40]
         for word in [w for w in album.split(" ") if len(w) > 2]:
             s_strings.append("album")
-            s_strings.append(word)
+            s_strings.append(word.replace(":", ""))
         if len(s_strings) > 40:
             s_strings = s_strings[0:40]
 
@@ -80,7 +80,8 @@ class DataBases:
         if len(result) == 0:
             return pd.DataFrame(result)
         if len(result) == 1:
-            #print(f"Search: {artist}-{album}, found {len(result)}")
+            #print(f"Search: {artist}-{album}-{title}, found {len(result)}")
+            #print(result)
             if not "album" in result[0]:
                 result[0]["album"] = ""
             result = pd.DataFrame(result)
