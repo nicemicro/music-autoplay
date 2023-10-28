@@ -167,11 +167,18 @@ def mpd_on(music):
     try:
         music.connect("localhost", 6600) # connect to localhost:6600
     except:
-        print("Now starting MPD and YAMS")
+        print("Now starting MPD")
         response = os.system("mpd")
-        response += os.system("yams")
         if response > 0:
             return 255
+        print("Trying to start YAMS")
+        response = os.system("yams 2>/dev/null")
+        if response > 0:
+            print("YAMS failed, starting MPDScribble")
+            response = os.system("mpdscribble 2>/dev/null")
+        if response > 0:
+            print("MPDScribble failed, starting MPDAS")
+            response = os.system("mpdas -d 2>/dev/null")
         music.connect("localhost", 6600) # connect to localhost:6600
         return 1
     return 0
@@ -179,7 +186,7 @@ def mpd_on(music):
 def mpd_stop():
     print("Shutting down MPD and YAMS")
     os.system("mpd --kill")
-    os.system("yams --kill")
+    os.system("yams --kill 2>/dev/null")
 
 def main_loop(music, db):
     print('Select a command')
