@@ -236,7 +236,42 @@ class DataBases:
                 song["Last"] = self.sugg_cache[index].at[place, "Last"]
                 song["Trial"] = trial
             self.sugg_cache[index] = self.sugg_cache[index].drop(place)
+        if song.empty and len(self.playlist) > 0:
+            #Trying to find songs from similar artists
+            lastsong = self.playlist.index[-1]
+            s_artists: pd.DataFrame = e.find_similar_artist(
+                self.songlist,
+                self.playlist.at[lastsong, "Artist"]
+            )
+            s_artists = s_artists[(s_artists["Point"] > s_artists["Point"].sum()/50)]
+            artists_songs: pd.DataFrame = e.summarize_songlist(
+                e.pd.merge(s_artists, self.songlist)
+            )
+            similarlist = e.pd.merge(artists_songs, s_artists, how="left", on="Artist")
+            similarlist["Point"] = similarlist["Point"] * similarlist["Played"]
+            similarlist = similarlist.sort_values(by="Point", ascending=False)
+            similarlist = (
+                e.remove_played(similarlist, self.playlist).reset_index(drop=True)
+            )
+            print("Selecting song based on artist matches")
+            while song.empty and len(similarlist) > 0:
+                place, trial = e.choose_song(similarlist, self.playlist)
+                print(similarlist[
+                    0:max(5, list(similarlist.index).index(place)+2)
+                ][["Artist", "Album", "Title", "Point"]])
+                print(f"  selected from list:  {place}")
+                song = self.search_song(
+                    similarlist.at[place, "Artist"],
+                    similarlist.at[place, "Album"],
+                    similarlist.at[place, "Title"]
+                )
+                if not song.empty:
+                    song["Place"] = np.NaN
+                    song["Last"] = np.NaN
+                    song["Trial"] = trial
+                similarlist = similarlist.drop(place)
         if song.empty:
+            #Just repeat itself to infinity
             lastsong = len(self.playlist) - 1
             song = self.search_song(self.playlist.at[lastsong, "Artist"],
                                     self.playlist.at[lastsong, "Album"],

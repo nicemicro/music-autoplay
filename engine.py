@@ -274,7 +274,6 @@ def find_similar_artist(
             points[j] if j < len(points) else 0 for j in range(el_num)
         ]
     result_conc: pd.DataFrame = pd.concat(result, sort=False).reset_index(drop=True)
-    result_conc.at[result_conc[(result_conc["Album"].isnull())].index, "Album"] = ""
     result_sum = (
         result_conc.groupby(["Artist"])
         .agg({"Scrobble time": ["max"], "Point": ["sum"]})
