@@ -152,25 +152,85 @@ class Not_played(ttk.Frame):
         ttk.Button(self, text="Add selected",
                    command= lambda: self.add_song()) \
             .grid(row=1, column=0, columnspan=1)
+
+        minplay_frame = ttk.Frame(self)
+        minplay_frame.columnconfigure(0, weight=1)
+        minplay_frame.grid(row=1, column=1, columnspan=2, sticky="nswe")
+        self.minplay_value = tk.IntVar(value=0)
+        self.minplay_scale = ttk.Scale(
+            minplay_frame,
+            orient="horizontal",
+            length=30,
+            from_=0,
+            to=30,
+            command=lambda x: self.change_minmax(self.minplay_value, float(x))
+        )
+        self.minplay_scale.grid(row=0, column=0, sticky="nswe")
+        self.minplay_text = ttk.Entry(
+            minplay_frame,
+            textvariable=self.minplay_value,
+            width=4,
+        )
+        self.minplay_text.grid(row=0, column=1, sticky="ns")
+
+        maxplay_frame = ttk.Frame(self)
+        maxplay_frame.columnconfigure(0, weight=1)
+        maxplay_frame.grid(row=1, column=3, columnspan=2, sticky="nswe")
+        self.maxplay_value = tk.IntVar(value=15)
+        self.maxplay_scale = ttk.Scale(
+            maxplay_frame,
+            orient="horizontal",
+            length=30,
+            from_=1,
+            to=30,
+            value=15,
+            command=lambda x: self.change_minmax(self.maxplay_value, float(x))
+        )
+        self.maxplay_scale.grid(row=0, column=0, sticky="nswe")
+        self.maxplay_text = ttk.Entry(
+            maxplay_frame,
+            textvariable=self.maxplay_value,
+            width=4,
+        )
+        self.maxplay_text.grid(row=0, column=1, sticky="ns")
             
-        ttk.Button(self, text="<- Page", 
-                   command= lambda: self.controller.prev_page()) \
-            .grid(row=2, column=0, columnspan=1)
-        ttk.Button(self, text="Recently added",
-                   command= lambda: self.controller.switch_page("new add", 0,
-                                                                15)) \
-            .grid(row=2, column=1, columnspan=1)
-        ttk.Button(self, text="Not played recently",
-                   command= lambda: self.controller.switch_page("old p", 10,
-                                                                0)) \
-            .grid(row=2, column=2, columnspan=1)
-        ttk.Button(self, text="Rarely played",
-                   command= lambda: self.controller.switch_page("rarely", 3,
-                                                                0)) \
-            .grid(row=2, column=3, columnspan=1)
-        ttk.Button(self, text="Page ->", 
-                   command= lambda: self.controller.next_page()) \
-            .grid(row=2, column=4, columnspan=1)
+        ttk.Button(
+            self,
+            text="<- Page",
+            command=lambda: self.controller.prev_page()
+        ).grid(row=2, column=0, columnspan=1)
+        ttk.Button(
+            self,
+            text="Recently added",
+            command=lambda: self.controller.switch_page(
+                "new add",
+                self.minplay_value.get(),
+                self.maxplay_value.get()
+            )
+        ).grid(row=2, column=1, columnspan=1)
+        ttk.Button(
+            self,
+            text="Not played recently",
+            command=lambda: self.controller.switch_page(
+                "old p",
+                self.minplay_value.get(),
+                self.maxplay_value.get()
+            )
+        ).grid(row=2, column=2, columnspan=1)
+        ttk.Button(
+            self,
+            text="Rarely played",
+            command=lambda: self.controller.switch_page(
+                "rarely",
+                self.minplay_value.get(),
+                self.maxplay_value.get()
+            )
+        ).grid(row=2, column=3, columnspan=1)
+        ttk.Button(
+            self,
+            text="Page ->",
+            command= lambda: self.controller.next_page()
+        ).grid(row=2, column=4, columnspan=1)
             
         self.columnconfigure(0, weight = 1)
         self.columnconfigure(1, weight = 1)
@@ -180,6 +240,15 @@ class Not_played(ttk.Frame):
         self.rowconfigure(0, weight = 1)
         self.rowconfigure(1, weight = 0)
         self.rowconfigure(2, weight = 0)
+
+    def change_minmax(self, textvariable: tk.IntVar, value: float) -> None:
+        if textvariable == self.minplay_value:
+            value = min(value, self.maxplay_value.get())
+        elif textvariable == self.maxplay_value:
+            value = max(value, self.minplay_value.get())
+        else:
+            assert False
+        textvariable.set(round(value))
     
     def setlist(self, newlist: pd.DataFrame):
         elements = self.songlistbox.get_children()
