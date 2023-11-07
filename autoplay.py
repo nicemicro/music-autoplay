@@ -9,6 +9,7 @@ Created on Tue Sep 14 09:26:24 2021
 import autoplay_gui_elements as apgui
 import autoplay_musichandler as apmh
 import os
+import argparse
 #from mpd import MPDmusic
 from mpd_wrapper import MPD
 import tkinter as tk
@@ -18,7 +19,7 @@ from typing import Optional, Union
 #%%
 
 class AppContainer(tk.Tk):
-    def __init__(self, music, *args, **kwargs):
+    def __init__(self, music, cmd_args, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
         self.music_handler = apmh.MusicHandler(music)
         self.title("Music Autoplay")
@@ -49,6 +50,9 @@ class AppContainer(tk.Tk):
         self.selectable: Optional[apmh.pd.DataFrame] = None
         self.switch_page("new add", 0, 15)
         self.searchresult: Optional[apmh.pd.DataFrame] = None
+
+        if cmd_args.start_playing:
+            self.play_next(0)
 
         self.after(500, self.update_current_played)
         self.after(5000, self.db_maintain)
@@ -161,7 +165,14 @@ class AppContainer(tk.Tk):
         self.music_handler.destroy()
         tk.Tk.destroy(self)
 
-#%%
+def arguments() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--start-playing",
+        help="finds a song to play and starts automatically",
+        action="store_true"
+    )
+    return parser
 
 def mpd_on(music):
     try:
@@ -188,19 +199,12 @@ def mpd_stop():
     os.system("mpd --kill")
     os.system("yams --kill 2>/dev/null")
 
-def main_loop(music, db):
-    print('Select a command')
-    cmd = input("search terms: ")
-    if cmd != "":
-        print(music.find("any", cmd))
-    return cmd != ""
-
-def main():
+def main(args):
     music = MPD()                    # create music object
     music.timeout = 100              # network timeout in seconds
     music.idletimeout = None         # for fetching the result of idle command
     mpd_shutoff = mpd_on(music)
-    app = AppContainer(music)
+    app = AppContainer(music, args)
     if mpd_shutoff <= 1:
         print("Mpd version:", music.mpd_version)
         app.mainloop()
@@ -212,4 +216,6 @@ def main():
     print('Bye')
 
 if __name__ == '__main__':
-    main()
+    parser = arguments()
+    args = parser.parse_args()
+    main(args)
