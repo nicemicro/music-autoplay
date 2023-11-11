@@ -9,9 +9,11 @@ Created on Mon Nov 15 08:18:36 2021
 import threading
 import time
 from queue import Queue
-import autoplay_databases as apdb
+from typing import Callable, Optional, Union
+
 import pandas as pd
-from typing import Optional, Union, Callable
+
+import autoplay_databases as apdb
 
 FWDLIST = 4
 #%%
@@ -299,9 +301,15 @@ class MusicHandler():
         c_title = currentsong["title"].replace(",", "")
         return c_artist, c_album, c_title
     
-    def volume(self, change: float) -> None:
-        volumelevel = int(self.music.status()["volume"])
+    def change_volume(self, change: float) -> None:
+        volumelevel = self.get_volume()
         self.music.volume(volumelevel + change)
+
+    def set_volume(self, new_volume) -> None:
+        self.music.volume(new_volume)
+
+    def get_volume(self) -> int:
+        return int(self.music.status()["volume"])
 
     def scrub_to_percent(self, percent: float) -> None:
         status = self.music.status()
@@ -433,4 +441,3 @@ class MusicHandler():
         self.comm_que.put(["quit", []])
         self.music.clear()
         self.db_wrap.join()
-

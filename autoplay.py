@@ -6,15 +6,16 @@ Created on Tue Sep 14 09:26:24 2021
 @author: nicemicro
 """
 
-import autoplay_gui_elements as apgui
-import autoplay_musichandler as apmh
-import os
 import argparse
-#from mpd import MPDmusic
-from mpd_wrapper import MPD
+import os
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional, Union
+
+import autoplay_gui_elements as apgui
+import autoplay_musichandler as apmh
+#from mpd import MPDmusic
+from mpd_wrapper import MPD
 
 #%%
 
@@ -51,8 +52,11 @@ class AppContainer(tk.Tk):
         self.switch_page("new add", 0, 15)
         self.searchresult: Optional[apmh.pd.DataFrame] = None
 
-        if cmd_args.start_playing:
+        if cmd_args.start_playing or cmd_args.alarmclock:
             self.play_next(0)
+        if cmd_args.alarmclock:
+            self.music_handler.set_volume(30)
+            self.after(5000, self.alarmclock_volumeup)
 
         self.after(500, self.update_current_played)
         self.after(5000, self.db_maintain)
@@ -79,7 +83,12 @@ class AppContainer(tk.Tk):
         self.play_file(position, filedata)
 
     def volume(self, change):
-        self.music_handler.volume(change)
+        self.music_handler.change_volume(change)
+
+    def alarmclock_volumeup(self):
+        self.volume(1)
+        if self.music_handler.get_volume() < 100:
+            self.after(5000, self.alarmclock_volumeup)
 
     def scrub_to_percent(self, percent: float) -> None:
         self.music_handler.scrub_to_percent(percent)
@@ -170,6 +179,12 @@ def arguments() -> argparse.ArgumentParser:
     parser.add_argument(
         "--start-playing",
         help="finds a song to play and starts automatically",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--alarmclock",
+        help=("starts the app at a low volume and increases it gradually" +
+            " (implies --start-playing)"),
         action="store_true"
     )
     return parser
