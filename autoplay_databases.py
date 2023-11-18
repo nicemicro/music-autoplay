@@ -206,7 +206,12 @@ class DataBases:
         if last_index not in self.sugg_cache:
             print("      >> Generating list")
             self.sugg_cache[last_index] = (
-                e.cumul_similar(self.songlist, self.playlist, cache=self.similars_cache)
+                e.cumul_similar(
+                    self.playlist,
+                    cache=self.similars_cache,
+                    similarities=self.similarities,
+                    songs=self.songs
+                )
             )
         print(self.playlist[-5:])
         index = last_index
@@ -470,6 +475,7 @@ class DataBases:
         self.songlist, self.artists, self.albums, self.playlist = \
             e.load_data(fname)
         self.songs = e.summarize_songlist(self.songlist)
+        self.similarities = e.summarize_similars(songlist=self.songlist)
 
     def save_file(self, fname=""):
         if fname == "":
