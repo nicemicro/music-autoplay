@@ -17,7 +17,7 @@ from mpd_wrapper import MPD
 #%%
 
 class DataBases:
-    def __init__(self, filename):
+    def __init__(self, filename: str):
         pd.options.display.max_colwidth = 25
         pd.options.display.width = 120
         e.pd.options.display.expand_frame_repr = False
@@ -43,7 +43,13 @@ class DataBases:
         self.music.idletimeout = None         # for fetching the result of idle command
         self.music.connect("localhost", 6600)
 
-    def search_song(self, artist, album, title, strict=True):
+    def search_song(
+        self,
+        artist: str,
+        album: str,
+        title: str,
+        strict: bool = True
+    ):
         """
         Searches for songs with artist, album and title given, in the MPD database
         """
@@ -215,6 +221,9 @@ class DataBases:
             )
         print(self.playlist[-5:])
         index = last_index
+        artist: str = ""
+        album: Union[str, float] = ""
+        title: str = ""
         while song.empty and index >= 0:
             if (
                 index not in self.sugg_cache or
@@ -231,10 +240,13 @@ class DataBases:
                 ]
             )
             print(f"  selected from list:  {place}")
+            artist = self.sugg_cache[index].at[place, "Artist"]
+            album = self.sugg_cache[index].at[place, "Album"]
+            if pd.isnull(album):
+                album = ""
+            title = self.sugg_cache[index].at[place, "Title"]
             song = self.search_song(
-                self.sugg_cache[index].at[place, "Artist"],
-                self.sugg_cache[index].at[place, "Album"],
-                self.sugg_cache[index].at[place, "Title"]
+                artist, album, title
             )
             if not song.empty:
                 song["Place"] = self.sugg_cache[index].at[place, "Place"]
