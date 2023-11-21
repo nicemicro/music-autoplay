@@ -95,14 +95,14 @@ def load_partial(
         .sort_values(by=["Scrobble time"], ascending=[False])
         .reset_index(drop=True)
     )
-    songlist_lowercase = songlist.copy()
-    songlist_lowercase["artist_low"] = songlist_lowercase["Artist"].str.lower()
-    all_artists = songlist_lowercase.groupby("artist_low").agg({"Artist": "max"})
+    songlist = songlist.copy(deep=False)
+    songlist["artist_l"] = songlist["Artist"].str.lower()
+    all_artists = songlist.groupby("artist_l").agg({"Artist": "max"})
     all_artists = all_artists.reset_index(drop=False)
     old_artists = artists.copy()
-    old_artists["artist_low"] = old_artists["Artist"].str.lower()
-    artists = pd.merge(old_artists, all_artists, how="outer", on="artist_low")
-    artists.columns = ["Artist2", "artist_low", "Artist"]
+    old_artists["artist_l"] = old_artists["Artist"].str.lower()
+    artists = pd.merge(old_artists, all_artists, how="outer", on="artist_l")
+    artists.columns = ["Artist2", "artist_l", "Artist"]
     albums = (
         songlist.drop_duplicates(subset=["Artist", "Album"])
         .drop("Title", 1)
@@ -139,9 +139,10 @@ def load_songlist(
     return songlist, artists, albums
 
 def make_indexlist(songlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
+    songlist = songlist.copy(deep=False)
     songlist["artist_l"] = songlist["Artist"].str.lower()
     songlist["title_l"] = songlist["Title"].str.lower()
-    songlist["album_l"] = songlist["Album"].str.lower().fillna("")
+    songlist["album_l"] = songlist["Album"].fillna("").str.lower()
     indexlist: pd.Dataframe = (
         pd.merge(
             songlist,
@@ -951,13 +952,13 @@ def remove_played(
     songs_played = playlist[["Artist", "Title"]].copy()
     list_cpy = list_to_handle.reset_index(drop=False)
     songs_played["Check"] = True
-    songs_played["Artist_low"] = songs_played["Artist"].str.lower()
-    songs_played["Title_low"] = songs_played["Title"].str.lower()
-    songs_played = songs_played[["Check", "Artist_low", "Title_low"]]
-    list_cpy["Artist_low"] = list_cpy["Artist"].str.lower()
-    list_cpy["Title_low"] = list_cpy["Title"].str.lower()
+    songs_played["artist_l"] = songs_played["Artist"].str.lower()
+    songs_played["title_l"] = songs_played["Title"].str.lower()
+    songs_played = songs_played[["Check", "artist_l", "title_l"]]
+    list_cpy["artist_l"] = list_cpy["Artist"].str.lower()
+    list_cpy["title_l"] = list_cpy["Title"].str.lower()
     merged = pd.merge(
-        list_cpy, songs_played, how="left", on=["Artist_low", "Title_low"]
+        list_cpy, songs_played, how="left", on=["artist_l", "title_l"]
     )
     merged = merged[(merged["Check"].isnull())]
     merged = merged.set_index("index")
@@ -966,10 +967,10 @@ def remove_played(
 
 def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     result: pd.DataFrame
-    songlist = songlist.copy()
+    songlist = songlist.copy(deep=False)
     songlist["artist_l"] = songlist["Artist"].str.lower()
     songlist["title_l"] = songlist["Title"].str.lower()
-    songlist["album_l"] = songlist["Album"].str.lower().fillna("")
+    songlist["album_l"] = songlist["Album"].fillna("").str.lower()
     artist_songs = songlist.groupby(
         ["artist_l", "album_l", "title_l"]
     ).agg(
@@ -994,8 +995,8 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
         ],
         axis=1,
     )
-    no_album = songs[(songs["Album"].isna())]
-    with_album = songs[(songs["Album"].notna())]
+    no_album = songs[(songs["Album"]=="")]
+    with_album = songs[(songs["Album"]!="")]
     #TODO try to make this a bit more elegant
     bestalbum = (
         with_album.groupby(["artist_l", "title_l"])
@@ -1084,15 +1085,14 @@ def find_not_played(
             per_album = value
     artist = artist.lower()
     album = album.lower()
-    songlist = songlist.copy()
-    songlist.loc[(songlist["Album"].isnull()), ["Album"]] = ""
-    songlist["Artist_low"] = songlist["Artist"].str.lower()
-    songlist["Title_low"] = songlist["Title"].str.lower()
-    songlist["Album_low"] = songlist["Album"].str.lower()
+    songlist = songlist.copy(deep=False)
+    songlist["artist_l"] = songlist["Artist"].str.lower()
+    songlist["title_l"] = songlist["Title"].str.lower()
+    songlist["album_l"] = songlist["Album"].fillna("").str.lower()
     if artist == "":
         if per_album:
             artist_songs = songlist.groupby(
-                ["Artist_low", "Album_low", "Title_low"]
+                ["artist_l", "album_l", "title_l"]
             ).agg(
                 {
                     "Scrobble time": ["count", "max", "min"],
@@ -1103,9 +1103,9 @@ def find_not_played(
             )
             artist_songs = artist_songs.reset_index(drop=False).set_axis(
                 [
-                    "Artist_low",
-                    "Album_low",
-                    "Title_low",
+                    "artist_l",
+                    "album_l",
+                    "title_l",
                     "Played",
                     "Played last",
                     "Added first",
@@ -1116,7 +1116,7 @@ def find_not_played(
                 axis=1,
             )
         else:
-            artist_songs = songlist.groupby(["Artist_low", "Title_low"]).agg(
+            artist_songs = songlist.groupby(["artist_l", "title_l"]).agg(
                 {
                     "Scrobble time": ["count", "max", "min"],
                     "Artist": ["max"],
@@ -1126,8 +1126,8 @@ def find_not_played(
             )
             artist_songs = artist_songs.reset_index(drop=False).set_axis(
                 [
-                    "Artist_low",
-                    "Title_low",
+                    "artist_l",
+                    "title_l",
                     "Played",
                     "Played last",
                     "Added first",
@@ -1139,9 +1139,9 @@ def find_not_played(
             )
     else:
         if album == "":
-            artist_songs = songlist[(songlist["Artist_low"] == artist)]
+            artist_songs = songlist[(songlist["artist_l"] == artist)]
             if per_album:
-                artist_songs = artist_songs.groupby(["Title_low", "Album_low"]).agg(
+                artist_songs = artist_songs.groupby(["title_l", "album_l"]).agg(
                     {
                         "Scrobble time": ["count", "max", "min"],
                         "Artist": ["max"],
@@ -1151,8 +1151,8 @@ def find_not_played(
                 )
                 artist_songs = artist_songs.reset_index(drop=False).set_axis(
                     [
-                        "Title_low",
-                        "Album_low",
+                        "title_l",
+                        "album_l",
                         "Played",
                         "Played last",
                         "Added first",
@@ -1163,7 +1163,7 @@ def find_not_played(
                     axis=1,
                 )
             else:
-                artist_songs = artist_songs.groupby(["Title_low"]).agg(
+                artist_songs = artist_songs.groupby(["title_l"]).agg(
                     {
                         "Scrobble time": ["count", "max", "min"],
                         "Artist": ["max"],
@@ -1173,7 +1173,7 @@ def find_not_played(
                 )
                 artist_songs = artist_songs.reset_index(drop=False).set_axis(
                     [
-                        "Title_low",
+                        "title_l",
                         "Played",
                         "Played last",
                         "Added first",
@@ -1186,10 +1186,10 @@ def find_not_played(
         else:
             artist_songs = (
                 songlist[
-                    (songlist["Artist_low"] == artist)
-                    & (songlist["Album_low"] == album)
+                    (songlist["artist_l"] == artist)
+                    & (songlist["album_l"] == album)
                 ]
-                .groupby(["Title_low"])
+                .groupby(["title_l"])
                 .agg(
                     {
                         "Scrobble time": ["count", "max", "min"],
@@ -1201,7 +1201,7 @@ def find_not_played(
             )
             artist_songs = artist_songs.reset_index(drop=False).set_axis(
                 [
-                    "Title_low",
+                    "title_l",
                     "Played",
                     "Played last",
                     "Added first",
@@ -1290,6 +1290,8 @@ def load_data(
     """
     with open(filename + ".pckl", "rb") as input_file:
         (songlist, artists, albums, playlist) = pc.load(input_file)
+    songlist["Album"] = songlist["Album"].fillna("")
+    playlist["Album"] = playlist["Album"].fillna("")
     # artists = pd.DataFrame(songlist[:]['Artist'].unique())
     # artists.columns = ['Artist']
     # albums = songlist.drop_duplicates(subset=['Artist', 'Album']
@@ -1315,6 +1317,12 @@ def load_csv(
         sep=",",
         names=["Artist", "Album", "Title", "Date added", "Place", "Last", "Trial"],
         parse_dates=["Date added"],
-        dtype={"Place": pd.Int64Dtype(), "Trial": pd.Int64Dtype(), "Last": pd.Int64Dtype()},
+        dtype={
+            "Place": pd.Int64Dtype(),
+            "Trial": pd.Int64Dtype(),
+            "Last": pd.Int64Dtype()
+        },
     )
+    songlist["Album"] = songlist["Album"].fillna("")
+    playlist["Album"] = playlist["Album"].fillna("")
     return songlist, artists, albums, playlist
