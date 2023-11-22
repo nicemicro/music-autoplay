@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<MusicAutoplay_Data version="0.0.0">
+	<Protocol>NEC</Protocol>
+	<Button text="1">
+		<code>16738455</code>
+		<command></command>
+	</Button>
+	<Button text="2">
+		<code>16750695</code>
+		<command></command>
+	</Button>
+	<Button text="3">
+		<code>16756815</code>
+		<command></command>
+	</Button>
+	<Button text="4">
+		<code>16724175</code>
+		<command></command>
+	</Button>
+	<Button text="5">
+		<code>16718055</code>
+		<command></command>
+	</Button>
+	<Button text="6">
+		<code>16743045</code>
+		<command></command>
+	</Button>
+	<Button text="7">
+		<code>16716015</code>
+		<command></command>
+	</Button>
+	<Button text="8">
+		<code>16726215</code>
+		<command></command>
+	</Button>
+	<Button text="9">
+		<code>16734885</code>
+		<command></command>
+	</Button>
+	<Button text="0">
+		<code>16730805</code>
+		<command></command>
+	</Button>
+	<Button text="*">
+		<code>16728765</code>
+		<command></command>
+	</Button>
+	<Button text="#">
+		<code>16732845</code>
+		<command></command>
+	</Button>
+	<Button text="ok">
+		<code>16712445</code>
+		<command></command>
+	</Button>
+	<Button text="left">
+		<code>16720605</code>
+		<command></command>
+	</Button>
+	<Button text="right">
+		<code>16761405</code>
+		<command></command>
+	</Button>
+	<Button text="up">
+		<code>16736925</code>
+		<command></command>
+	</Button>
+	<Button text="down">
+		<code>16754775</code>
+		<command></command>
+	</Button>
+</MusicAutoplay_Data>

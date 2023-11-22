@@ -1,4 +1,5 @@
 *.pckl
 *.csv
+remote.xml
 testresult.txt
 __pycache__

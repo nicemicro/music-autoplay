@@ -16,6 +16,7 @@ import autoplay_gui_elements as apgui
 import autoplay_musichandler as apmh
 #from mpd import MPDmusic
 from mpd_wrapper import MPD
+import autoplay_ir_receiver as apir
 
 #%%
 
@@ -35,7 +36,10 @@ class AppContainer(tk.Tk):
         self.bottomsection = ttk.Notebook(container)
         self.bottomsection.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
         self.frames: dict[str, Union[apgui.Not_played, apgui.Search]] = {
-            "Not_played": apgui.Not_played(parent=self.bottomsection, controller=self),
+            "Not_played": apgui.Not_played(
+                parent=self.bottomsection,
+                controller=self
+            ),
             "Search": apgui.Search(parent=self.bottomsection, controller=self)
         }
         for name, frame in self.frames.items():
@@ -44,6 +48,8 @@ class AppContainer(tk.Tk):
         container.rowconfigure(0, weight=0)
         container.rowconfigure(1, weight=1)
         container.columnconfigure(0, weight=1)
+
+        self.irreceiver = apir.IrReceiverHandler(self)
         
         # These variables are controling the listing of possible songs to play
         self.nplistsize: int = 25 # the number of songs listed in the not played box
@@ -59,6 +65,7 @@ class AppContainer(tk.Tk):
             self.after(5000, self.alarmclock_volumeup)
 
         self.after(500, self.update_current_played)
+        self.after(500, self.check_ir_queue)
         self.after(5000, self.db_maintain)
         self.after(30000, self.save_db)
     
@@ -169,9 +176,14 @@ class AppContainer(tk.Tk):
     def save_db(self):
         self.music_handler.save_db()
         self.after(30000, self.save_db)
+
+    def check_ir_queue(self):
+        self.irreceiver.check_queue()
+        self.after(100, self.check_ir_queue)
     
     def destroy(self):
         self.music_handler.destroy()
+        self.irreceiver.destroy()
         tk.Tk.destroy(self)
 
 def arguments() -> argparse.ArgumentParser:
