@@ -67,6 +67,7 @@ class DataBaseWrapper(threading.Thread):
 class MusicHandler():
     def __init__(self, music):
         self.music = music
+        self.music.update
         self.comm_que = Queue()
         self.resp_que = Queue()
         self.db_wrap = DataBaseWrapper("data", self.comm_que, self.resp_que)

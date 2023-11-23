@@ -14,7 +14,7 @@ from xml.etree import ElementTree as et
 from threading import Thread
 import time
 from queue import Queue
-from typing import Callable
+from typing import Callable, Optional
 from datetime import datetime
 try:
     import RPi.GPIO as GPIO
@@ -31,7 +31,7 @@ class IrReceiver(Thread):
 
     def run(self):
         exitFlag: bool = False
-        ir_raw_input: list[tuple[bool, float]] = []
+        ir_raw_input: list[tuple[int, float]] = []
         inputvalue: bool = True
         countdown: int = 0
         while not exitFlag:
@@ -97,6 +97,8 @@ class IrReceiverHandler():
             print("File version unknown.")
         self.buttons: dict[int, dict[str, str]] = {}
         protocol: str = ""
+        button_code: int
+        button_cmd: Optional[str]
         for record in root:
             if record.tag == "Protocol":
                 assert isinstance(record.text, str)
@@ -111,6 +113,8 @@ class IrReceiverHandler():
                         continue
                     if button_data.tag == "command":
                         button_cmd = button_data.text
+                if not isinstance(button_cmd, str):
+                    continue
                 self.buttons[button_code] = {
                     "text": button_text,
                     "cmd": button_cmd
@@ -135,23 +139,42 @@ class IrReceiverHandler():
     def check_queue(self) -> None:
         if self.controller is None:
             return
-        if self.ir_pulses.empty():
-            #print("nothing")
-            return
-        ir_pulse = self.ir_pulses.get()
-        ir_code = self.decoder(ir_pulse)
-        if ir_code == -1:
-            if not self.last_repeated:
-                self.last_repeated = True
-                # First repeat code is ignored
-                return
-            ir_code = self.last_command
-        else:
-            self.last_repeated = False
-            self.last_command = ir_code
-        print(ir_code)
-        if ir_code in self.buttons:
-            print(self.buttons[ir_code])
+        while not self.ir_pulses.empty():
+            ir_pulse: int = self.ir_pulses.get()
+            repeater: bool = False
+            try:
+                ir_code = self.decoder(ir_pulse)
+            except ValueError:
+                continue
+            if ir_code == -1:
+                if not self.last_repeated:
+                    self.last_repeated = True
+                    # First repeat code is ignored
+                    continue
+                ir_code = self.last_command
+                repeater = True
+            else:
+                self.last_repeated = False
+                self.last_command = ir_code
+            if ir_code not in self.buttons:
+                continue
+            command: str = self.buttons[ir_code]["cmd"]
+            if command == "vol+":
+                self.controller.volume(5)
+                continue
+            if command == "vol-":
+                self.controller.volume(-5)
+                continue
+            if repeater:
+                continue
+            if command == "shutdown":
+                self.controller.destroy()
+                continue
+            if command == "playpause":
+                self.controller.play_pause()
+                continue
+            if command == "next":
+                self.controller.play_next(-1)
 
     def destroy(self) -> None:
         if self.controller is None:
@@ -164,9 +187,10 @@ def NEC_decode(data: list[tuple[int, float]]) -> int:
     #messagestr: str = ""
     # NEC ref: https://techdocs.altium.com/display/FPGA/NEC%2bInfrared%2bTransmission%2bProtocol
     # (high and low are reversed on the RPi compared to the reference)
-    # NEC code starts with 9 ms low pulse
+    # NEC code starts with 9 ms low pulse (but it might have been realized
+    # too late, so shorter time is acceptable)
     lowhigh, timegap = data.pop(0)
-    if lowhigh or timegap < 7000 or timegap > 11000:
+    if lowhigh or timegap < 5000 or timegap > 11000:
         raise ValueError("Data is not formatted in accordance with NEC")
     lowhigh, timegap = data.pop(0)
     # A repeat code (button is kept pressed down) gets a 2.25 ms high pulse
