@@ -76,7 +76,10 @@ class Cache():
         return result[(result["Place"].notna())]
 
 def load_partial(
-    songlist: pd.DataFrame, artists: pd.DataFrame, albums: pd.DataFrame, filename: str
+    songlist: pd.DataFrame,
+    artists: pd.DataFrame,
+    albums: pd.DataFrame,
+    filename: str
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Loads the newest scrobbles and adds it to the current songlist.
@@ -95,16 +98,16 @@ def load_partial(
         .sort_values(by=["Scrobble time"], ascending=[False])
         .reset_index(drop=True)
     )
-    songlist = songlist.copy(deep=False)
-    songlist["artist_l"] = songlist["Artist"].str.lower()
-    all_artists = songlist.groupby("artist_l").agg({"Artist": "max"})
+    songlist2 = songlist.copy(deep=False)
+    songlist2["artist_l"] = songlist2["Artist"].str.lower()
+    all_artists = songlist2.groupby("artist_l").agg({"Artist": "max"})
     all_artists = all_artists.reset_index(drop=False)
     old_artists = artists.copy()
     old_artists["artist_l"] = old_artists["Artist"].str.lower()
     artists = pd.merge(old_artists, all_artists, how="outer", on="artist_l")
     artists.columns = ["Artist2", "artist_l", "Artist"]
     albums = (
-        songlist.drop_duplicates(subset=["Artist", "Album"])
+        songlist2.drop_duplicates(subset=["Artist", "Album"])
         .drop("Title", 1)
         .drop("Scrobble time", 1)
     )
