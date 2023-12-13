@@ -37,7 +37,7 @@ def artist_pop(songlist, artists):
     songlist = songlist.copy()
     songlist["artist_low"] = songlist["Artist"].str.lower()
     artist_hit = songlist.groupby(["artist_low"]).agg({
-        "Artist": ["max"], "Scrobble time": ["count"]}).reset_index(drop=True)
+        "Artist": ["max"], "Time added": ["count"]}).reset_index(drop=True)
     artist_hit = artist_hit.set_axis(["Artist", "Hit"], axis=1)
     artist_hit_return = pd.merge(artists, artist_hit, how="left", on="Artist")
     return artist_hit_return[(artist_hit_return["Hit"]).notna()]

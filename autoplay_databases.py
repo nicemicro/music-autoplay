@@ -7,7 +7,7 @@ Created on Sun Oct  3 20:35:00 2021
 """
 
 from datetime import datetime
-
+from typing import Union
 import numpy as np
 import pandas as pd
 
@@ -302,7 +302,7 @@ class DataBases:
             {0: last_index+1},
             axis="index"
         )
-        newline["Date added"] = datetime.utcnow()
+        newline["Time added"] = datetime.utcnow()
         self.playlist = pd.concat([self.playlist, newline])
         print("  Selected song: ")
         print(newline)
@@ -354,16 +354,14 @@ class DataBases:
         return new_list
     
     def songlist_append(self, artist, album, title):
-        return
-        # TODO fix this, whatever's wrong with it
         if (
-            (self.songlist.at[0, "artist"].lower() == artist.lower()) and
-            (self.songlist.at[0, "title"].lower() == title.lower())
+            (self.songlist.at[0, "Artist"].lower() == artist.lower()) and
+            (self.songlist.at[0, "Title"].lower() == title.lower())
         ):
             return
         new_line = pd.DataFrame([[artist, album, title, datetime.utcnow()]],
                                 columns=["Artist", "Album", "Title",
-                                         "Scrobble time"])
+                                         "Time added"])
         self.songlist = pd.concat([new_line, self.songlist]).reset_index(drop=True)
     
     def playlist_append(self, artist, album, title):
@@ -377,7 +375,7 @@ class DataBases:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
             [[artist, album, title, datetime.utcnow()]],
-            columns=["Artist", "Album", "Title", "Date added"],
+            columns=["Artist", "Album", "Title", "Time added"],
             index=[index]
         )
         self.playlist = pd.concat([self.playlist, new_line])
@@ -403,7 +401,7 @@ class DataBases:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
             [[artist, album, title, datetime.utcnow(), np.NaN, np.NaN]],
-            columns=["Artist", "Album", "Title", "Date added", "Place", "Trial"],
+            columns=["Artist", "Album", "Title", "Time added", "Place", "Trial"],
             index=[index]
         )
         self.playlist = pd.concat([self.playlist, new_line])

@@ -136,7 +136,7 @@ def unique(playlist):
     playlist2["artist_low"] = playlist2["Artist"].str.lower()
     playlist2["title_low"] = playlist2["Title"].str.lower()
     return len(playlist2.groupby(["artist_low", "title_low"], axis=0) \
-               .agg({"Date added": "count"}).index)
+               .agg({"Time added": "count"}).index)
    
 #%%
 def main_loop():
