@@ -131,14 +131,6 @@ def not_played(songlist, playlist, artist='', album='', **kwargs):
     return songs[["Artist", "Album", "Title", "Played", "Last"]]
 
 #%%
-def unique(playlist):
-    playlist2 = playlist.copy()
-    playlist2["artist_low"] = playlist2["Artist"].str.lower()
-    playlist2["title_low"] = playlist2["Title"].str.lower()
-    return len(playlist2.groupby(["artist_low", "title_low"], axis=0) \
-               .agg({"Time added": "count"}).index)
-   
-#%%
 def main_loop():
     global songlist, artists, albums, playlist
     print('Select a command')

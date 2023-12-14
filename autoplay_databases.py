@@ -363,6 +363,7 @@ class DataBases:
                                 columns=["Artist", "Album", "Title",
                                          "Time added"])
         self.songlist = pd.concat([new_line, self.songlist]).reset_index(drop=True)
+        self.save_file()
     
     def playlist_append(self, artist, album, title):
         last_index = self.playlist.index[-1]

@@ -23,7 +23,7 @@ def artist_pop(songlist, artists):
     Parameters
     ----------
     songlist : Pandas DataFrame
-        Contains the list of all scrobbled songs (Artist, Album, Title, Date
+        Contains the list of all playd songs (Artist, Album, Title, Date
         added).
     artists : Pandas DataFrame
         Contains the list of all artists.
@@ -74,7 +74,7 @@ def related_artists(songlist, artists, artist_name, points=points,
     Parameters
     ----------
     songlist : Pandas DataFrame
-        Contains the list of all scrobbled songs (Artist, Album, Title, Date
+        Contains the list of all playd songs (Artist, Album, Title, Date
         added).
     artists : Pandas DataFrame
         Contains the list of all artists.
@@ -125,7 +125,7 @@ def artist_matrix(songlist, artists, index_from=0, index_to=-1, points=points,
     Parameters
     ----------
     songlist : Pandas DataFrame
-        Contains the list of all scrobbled songs (Artist, Album, Title, Date
+        Contains the list of all playd songs (Artist, Album, Title, Date
         added).
     artists : Pandas DataFrame
         Contains the list of all artists.

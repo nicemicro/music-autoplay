@@ -8,7 +8,6 @@ Created on Tue May  7 21:56:39 2019
 
 import datetime
 import multiprocessing as mp
-import pickle as pc
 import random as rnd
 from typing import Optional, Union
 
@@ -82,7 +81,7 @@ def load_partial(
     filename: str
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Loads the newest scrobbles and adds it to the current songlist.
+    Loads the newest plays and adds it to the current songlist.
     """
     new_songs: pd.DataFrame = pd.read_csv(
         filename,
@@ -122,7 +121,7 @@ def load_songlist(
     """
     Loads all the songs from the properly formatted csv file.
     Returns:
-        songlist - all the songs with available scrobble information
+        songlist - all the songs with available play information
         artists - the unique artists
         albums - the unique artist + album combinations
     """
@@ -178,7 +177,7 @@ def make_indexlist(songlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
        "artist_l", "album_l", "title_l"]]
     indexlist = (
         pd.concat([indexlist, no_match])
-        .sort_values("Time added")[["song_id", "Scrobble time"]]
+        .sort_values("Time added")[["song_id", "Time added"]]
     )
     indexlist = indexlist.reset_index(drop=True)
     return indexlist
@@ -752,7 +751,7 @@ def playlist_from_songs(
     songlist: pd.DataFrame, playlist: pd.DataFrame, datetime: pd.Timestamp
 ) -> pd.DataFrame:
     """
-    Gets the songs from the songlist that have been scrobbled after the last
+    Gets the songs from the songlist that have been playd after the last
     entry in playlist, and adds it to the end of playlist.
     """
     merge = (
@@ -1242,7 +1241,7 @@ def find_old_song(
     sort_by_last: bool = False,
 ) -> pd.DataFrame:
     """
-    Finds the songs that haven't been scrobbled since the specified date and
+    Finds the songs that haven't been playd since the specified date and
     aren't in the playlist. If sort_by_last is set True, the output is sorted
     to show the songs played the latest. If False, it will be ordered based on
     the number the song has been played.
@@ -1263,7 +1262,16 @@ def find_old_song(
     return merged.reset_index(drop=True)
 
 
-#%%
+def unique(playlist):
+    playlist2 = playlist.copy()
+    playlist2["artist_low"] = playlist2["Artist"].str.lower()
+    playlist2["title_low"] = playlist2["Title"].str.lower()
+    return len(
+        playlist2.groupby(["artist_low", "title_low"], axis=0).
+        agg({"Time added": "count"}).index
+    )
+
+
 def save_data(
     songlist: pd.DataFrame,
     artists: pd.DataFrame,
@@ -1274,8 +1282,6 @@ def save_data(
     """
     Saves the songlist and the playlist in a pickle file.
     """
-    with open(filename + ".pckl", "wb") as output_file:
-        pc.dump((songlist, artists, albums, playlist), output_file)
     songlist.to_csv(filename + "_songlist.csv", index=False, header=False)
     artists.to_csv(filename + "_artists.csv", index=False, header=False)
     albums.to_csv(filename + "_albums.csv", index=False, header=False)
@@ -1285,25 +1291,6 @@ def save_data(
 def load_data(
     filename: str = "data",
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Loads the songlist and the playlist from a pickle and extracts artists
-    and albums.
-    """
-    with open(filename + ".pckl", "rb") as input_file:
-        (songlist, artists, albums, playlist) = pc.load(input_file)
-    songlist["Album"] = songlist["Album"].fillna("")
-    playlist["Album"] = playlist["Album"].fillna("")
-    # artists = pd.DataFrame(songlist[:]['Artist'].unique())
-    # artists.columns = ['Artist']
-    # albums = songlist.drop_duplicates(subset=['Artist', 'Album']
-    #                                  ).drop('Title', 1).drop('Time added',
-    #                                                          1)
-    return songlist, artists, albums, playlist
-
-
-def load_csv(
-    filename: str = "data",
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Loads the data from CSV files."""
     songlist = pd.read_csv(
         filename + "_songlist.csv",
@@ -1311,19 +1298,37 @@ def load_csv(
         names=["Artist", "Album", "Title", "Time added"],
         parse_dates=["Time added"],
     )
-    artists = pd.read_csv(filename + "_artists.csv", sep=",", names=["Artist"])
-    albums = pd.read_csv(filename + "_albums.csv", sep=",", names=["Artist", "Albums"])
-    playlist = pd.read_csv(
-        filename + "_playlist.csv",
+    artists = pd.read_csv(
+        filename + "_artists.csv",
         sep=",",
-        names=["Artist", "Album", "Title", "Time added", "Place", "Last", "Trial"],
-        parse_dates=["Time added"],
-        dtype={
-            "Place": pd.Int64Dtype(),
-            "Trial": pd.Int64Dtype(),
-            "Last": pd.Int64Dtype()
-        },
+        names=["Artist"]
+    )
+    albums = pd.read_csv(
+        filename + "_albums.csv",
+        sep=",",
+        names=["Artist", "Albums"]
     )
     songlist["Album"] = songlist["Album"].fillna("")
-    playlist["Album"] = playlist["Album"].fillna("")
+    now = datetime.datetime.utcnow()
+    playlist = songlist[(
+        songlist["Time added"] >
+        now - datetime.timedelta(days=21)
+    )]
+    playlist = playlist.sort_values(by="Time added").reset_index(drop=True)
+    playlist["Place"] = None
+    playlist["Trial"] = None
+    playlist["Last"] = None
+    if unique(playlist) < 800:
+        return songlist, artists, albums, playlist
+    playlist2 = (
+        playlist[(
+            playlist["Time added"] > now - datetime.timedelta(days=10)
+        )].reset_index(drop=True)
+    )
+    if unique(playlist2) > 600:
+        return songlist, artists, albums, playlist2
+    unique_songs: int = unique(playlist[-600:])
+    playlist = (
+        playlist[-(1200-unique_songs):]
+    ).reset_index(drop=True)
     return songlist, artists, albums, playlist

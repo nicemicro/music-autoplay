@@ -67,7 +67,6 @@ class AppContainer(tk.Tk):
         self.after(500, self.update_current_played)
         self.after(500, self.check_ir_queue)
         self.after(5000, self.db_maintain)
-        self.after(30000, self.save_db)
     
     def play_pause(self):
         self.music_handler.play_pause()
@@ -173,10 +172,6 @@ class AppContainer(tk.Tk):
         self.music_handler.db_maintain()
         self.after(5000, self.db_maintain)
     
-    def save_db(self):
-        self.music_handler.save_db()
-        self.after(30000, self.save_db)
-
     def check_ir_queue(self):
         self.irreceiver.check_queue()
         self.after(100, self.check_ir_queue)
