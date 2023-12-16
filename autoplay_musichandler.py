@@ -120,6 +120,8 @@ class MusicHandler():
         #print("   found something")
         suggestion = self.result_storage.pop("suggest_song")
         assert isinstance(suggestion, pd.DataFrame)
+        if suggestion.empty:
+            return
         self.music.add(suggestion.at[0, "file"])
         #print("    suggestion returned: ", suggestion.at[0, "file"])
         self.music.random(0)

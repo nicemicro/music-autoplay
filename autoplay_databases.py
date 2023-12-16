@@ -244,6 +244,7 @@ class DataBases:
             album = self.sugg_cache[index].at[place, "Album"]
             if pd.isnull(album):
                 album = ""
+            assert isinstance(album, str)
             title = self.sugg_cache[index].at[place, "Title"]
             song = self.search_song(
                 artist, album, title
@@ -253,24 +254,28 @@ class DataBases:
                 song["Last"] = self.sugg_cache[index].at[place, "Last"]
                 song["Trial"] = trial
             self.sugg_cache[index] = self.sugg_cache[index].drop(place)
-        if song.empty and len(self.playlist) > 0:
+        index = len(self.playlist) - 1
+        while song.empty and index >= 0:
             #Trying to find songs from similar artists
-            lastsong = self.playlist.index[-1]
             s_artists: pd.DataFrame = e.find_similar_artist(
                 self.songlist,
-                self.playlist.at[lastsong, "Artist"]
+                self.playlist.at[index, "Artist"]
             )
             s_artists = s_artists[(s_artists["Point"] > s_artists["Point"].sum()/50)]
             artists_songs: pd.DataFrame = e.summarize_songlist(
                 e.pd.merge(s_artists, self.songlist)
             )
             similarlist = e.pd.merge(artists_songs, s_artists, how="left", on="Artist")
+            similarlist["Album"] = similarlist["Album"].fillna("")
             similarlist["Point"] = similarlist["Point"] * similarlist["Played"]
             similarlist = similarlist.sort_values(by="Point", ascending=False)
             similarlist = (
                 e.remove_played(similarlist, self.playlist).reset_index(drop=True)
             )
-            print("Selecting song based on artist matches")
+            print(
+                "Selecting song based on artist matches for ",
+                self.playlist.at[index, "Artist"]
+            )
             while song.empty and len(similarlist) > 0:
                 place, trial = e.choose_song(similarlist, self.playlist)
                 print(similarlist[
@@ -287,15 +292,20 @@ class DataBases:
                     song["Last"] = np.NaN
                     song["Trial"] = trial
                 similarlist = similarlist.drop(place)
-        if song.empty:
-            #Just repeat itself to infinity
-            lastsong = len(self.playlist) - 1
-            song = self.search_song(self.playlist.at[lastsong, "Artist"],
-                                    self.playlist.at[lastsong, "Album"],
-                                    self.playlist.at[lastsong, "Title"])
+            index = index - 1
+        index = len(self.playlist) - 1
+        while song.empty and index >= 0:
+            #Just repeat the last song it can find
+            song = self.search_song(self.playlist.at[index, "Artist"],
+                                    self.playlist.at[index, "Album"],
+                                    self.playlist.at[index, "Title"])
             song["Place"] = np.NaN
             song["Last"] = np.NaN
             song["Trial"] = np.NaN
+            index = index - 1
+        if song.empty:
+            print("giving up")
+            return song
         song = self.mergesongdata(song)
         newline = (song[0:1][["Artist", "Album", "Title", "Place", "Last", "Trial"]])
         newline = newline.rename(
