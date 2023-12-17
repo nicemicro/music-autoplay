@@ -61,7 +61,7 @@ class AppContainer(tk.Tk):
         if cmd_args.start_playing or cmd_args.alarmclock:
             self.play_next(0)
         if cmd_args.alarmclock:
-            self.music_handler.set_volume(30)
+            self.music_handler.set_volume(50)
             self.after(5000, self.alarmclock_volumeup)
 
         self.after(500, self.update_current_played)

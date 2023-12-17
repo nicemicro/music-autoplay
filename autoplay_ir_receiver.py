@@ -189,6 +189,8 @@ def NEC_decode(data: list[tuple[int, float]]) -> int:
     # (high and low are reversed on the RPi compared to the reference)
     # NEC code starts with 9 ms low pulse (but it might have been realized
     # too late, so shorter time is acceptable)
+    if len(data) < 3:
+        return 0
     lowhigh, timegap = data.pop(0)
     if lowhigh or timegap < 5000 or timegap > 11000:
         raise ValueError("Data is not formatted in accordance with NEC")

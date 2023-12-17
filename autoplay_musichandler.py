@@ -74,6 +74,7 @@ class MusicHandler():
         self.db_wrap.start()
         #self.db = apdb.DataBases("data")
         self.clear_playlist()
+        self.tentative_volume: Optional[int] = None
         self.result_storage: dict[str, Optional[pd.DataFrame]] = {}
             
     def clear_playlist(self) -> None:
@@ -92,9 +93,23 @@ class MusicHandler():
             
     def play_pause(self) -> None:
         if self.music.status()["state"] != "play":
-            self.music.play()
+            self.play_song()
         else:
             self.music.pause()
+
+    def play_song(self, position: Optional[int]=None) -> None:
+        if position is None:
+            self.music.play()
+        else:
+            self.music.play(position)
+        if self.tentative_volume is not None:
+            trial: int = 0
+            while trial < 15 and self.get_volume() == -1:
+                print("waiting for volume to be able to set")
+                time.sleep(0.1)
+            if self.get_volume() != -1:
+                self.set_volume(self.tentative_volume)
+                self.tentative_volume = None
             
     def get_results_from_queue(self) -> None:
         while not self.resp_que.empty():
@@ -131,7 +146,7 @@ class MusicHandler():
         if status["state"] == "stop":
             #print(status)
             mpdlistlen = int(status["playlistlength"])
-            self.music.play(mpdlistlen - 1)
+            self.play_song(mpdlistlen - 1)
     
     def find_suggested_song(self) -> None:
         #currentsong = self.music.currentsong()
@@ -181,7 +196,7 @@ class MusicHandler():
         if status["state"] == "stop":
             #print(status)
             mpdlistlen = int(status["playlistlength"])
-            self.music.play(mpdlistlen - 1)
+            self.play_song(mpdlistlen - 1)
         self.comm_que.put(["db_maintain", []])
 
     def play_file(self, position: int, filedata: tuple[str, str, str, str]) -> None:
@@ -288,7 +303,6 @@ class MusicHandler():
         jumpto = min([jumpto, mpdlistlen - 1, mpdlistpos + FWDLIST])
         duration = float(status["duration"])
         elapsed = float(status["elapsed"])
-        #print(pd.DataFrame(self.music.playlistinfo())[["artist", "title"]])
         if elapsed <= 180 and elapsed <= duration / 2:
             self.delete_command(0, jumpto - mpdlistpos, False)
         else:
@@ -306,13 +320,21 @@ class MusicHandler():
     
     def change_volume(self, change: float) -> None:
         volumelevel = self.get_volume()
+        if volumelevel == -1:
+            return
         self.music.volume(volumelevel + change)
 
     def set_volume(self, new_volume) -> None:
+        if self.get_volume() == -1:
+            self.tentative_volume = new_volume
+            return
         self.music.volume(new_volume)
 
     def get_volume(self) -> int:
-        return int(self.music.status()["volume"])
+        status = self.music.status()
+        if "volume" not in status:
+            return -1
+        return int(status["volume"])
 
     def scrub_to_percent(self, percent: float) -> None:
         status = self.music.status()
