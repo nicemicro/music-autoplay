@@ -55,7 +55,7 @@
 	</Button>
 	<Button text="left">
 		<code>16720605</code>
-		<command></command>
+		<command>change</command>
 	</Button>
 	<Button text="right">
 		<code>16761405</code>

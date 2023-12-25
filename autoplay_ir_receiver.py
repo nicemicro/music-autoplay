@@ -175,6 +175,8 @@ class IrReceiverHandler():
                 continue
             if command == "next":
                 self.controller.play_next(-1)
+            if command == "change":
+                self.controller.change_song(-2)
 
     def destroy(self) -> None:
         if self.controller is None:
