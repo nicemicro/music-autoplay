@@ -209,7 +209,7 @@ def summarize_similars(
                 indexlist,
                 (
                     indexlist[index+1:].reset_index(drop=True)
-                    .set_axis([f"id_after", f"Time_after"], axis=1)
+                    .set_axis(["id_after", "Time_after"], axis=1)
                 )
             ],
             axis=1))
@@ -229,6 +229,62 @@ def summarize_similars(
         ["Time added", "Timediff"], ascending=[False, True]
     )
     return similarities.reset_index(drop=True)
+
+
+def get_song_id(
+    songs: pd.DataFrame,
+    artist: str,
+    title: str,
+    album: str = "",
+) -> list[int]:
+    song_matches: pd.DataFrame = (
+        (songs["artist_l"] == artist) & (songs["title_l"] == title)
+    )
+    if album != "":
+        song_matches = (song_matches) & (songs["album_l"] == album)
+    return list(songs[song_matches].index)
+
+
+def find_similar_id(
+    songs: pd.DataFrame,
+    song_id: Union[int, list[int]],
+    timeframe: int = 30,
+    points: Optional[list[int]] = None,
+    indexlist: Optional[pd.DataFrame] = None,
+    similarities: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    if (similarities is None and indexlist is None):
+        raise ValueError("indexlist or similarities needed.")
+    if isinstance(song_id, int):
+        song_id = [song_id]
+    if len(song_id) == 0:
+        return pd.DataFrame()
+    if timeframe == 0:
+        return pd.DataFrame()
+    if points is None:
+        points = [10, 5, 2, 1, 1]
+    if similarities is None:
+        similarities = summarize_similars(
+            songs=songs,
+            indexlist=indexlist,
+            points=points,
+            timeframe=timeframe
+        )
+    if timeframe > 0:
+        similarities = similarities[similarities["song_id"].isin(song_id)]
+    else:
+        similarities = similarities[similarities["id_after"].isin(song_id)]
+    similarities_group: pd.Grouper = similarities.groupby(["song_id", "id_after"])
+    sum_by_index: pd.DataFrame = (
+        similarities_group.agg({"Time added": ["max"], "Point": ["sum"]})
+        .reset_index()
+        .set_axis(["song_id", "id_after", "Played last", "Point"], axis=1)
+        .sort_values(by=["Point", "Played last"], ascending=[False, False])
+        .reset_index(drop=True)
+    )
+    sum_by_index["Last"] = sum_by_index.index + 1
+    sum_by_index["Place"] = sum_by_index["Last"]
+    return sum_by_index
 
 
 def find_similar(
@@ -282,28 +338,11 @@ def find_similar(
             points=points,
             timeframe=timeframe
         )
-    song_matches: pd.DataFrame = (
-        (songs["artist_l"] == artist) & (songs["title_l"] == title)
-    )
-    if album != "":
-        song_matches = (song_matches) & (songs["album_l"] == album)
-    songindex: list[int] = list(songs[song_matches].index)
-    if len(songindex) == 0:
+    song_id: list[int] = get_song_id(songs, artist, title, album)
+    if len(song_id) == 0:
         return pd.DataFrame()
-    if timeframe > 0:
-        similarities = similarities[similarities["song_id"].isin(songindex)]
-    else:
-        similarities = similarities[similarities["id_after"].isin(songindex)]
-    similarities_group: pd.Grouper = similarities.groupby(["song_id", "id_after"])
-    sum_by_index: pd.DataFrame = (
-        similarities_group.agg({"Time added": ["max"], "Point": ["sum"]})
-        .reset_index()
-        .set_axis(["song_id", "id_after", "Played last", "Point"], axis=1)
-        .sort_values(by=["Point", "Played last"], ascending=[False, False])
-        .reset_index(drop=True)
-    )
-    sum_by_index["Last"] = sum_by_index.index + 1
-    sum_by_index["Place"] = sum_by_index["Last"]
+    sum_by_index: pd.DataFrame = find_similar_id(
+        songs, song_id, timeframe, points, similarities=similarities)
     result_sum: pd.DataFrame
     if timeframe > 0:
         result_sum = pd.merge(
@@ -968,6 +1007,7 @@ def remove_played(
 def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     result: pd.DataFrame
     songlist = songlist.copy(deep=False)
+    songlist = songlist.sort_values(by="Time added", ascending=True)
     songlist["artist_l"] = songlist["Artist"].str.lower()
     songlist["title_l"] = songlist["Title"].str.lower()
     songlist["album_l"] = songlist["Album"].fillna("").str.lower()
