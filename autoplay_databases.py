@@ -124,8 +124,13 @@ class DataBases:
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
-        self.playablelist = e.find_not_played(
-            self.songlist, self.playlist, *args, **kwargs
+        self.playablelist = e.filter_and_order(
+            songs=self.songs, *args, **kwargs
+        )
+        self.playablelist = (
+            e.remove_played(self.playablelist, self.playlist)
+            .reset_index(drop=True)
+            .fillna("")
         )
         self.plstartindex = 0
         self.plendindex = 0
@@ -350,9 +355,11 @@ class DataBases:
             return result 
         full = pd.DataFrame([])
         for index in artist_match.index:
-            partial = e.find_not_played(self.songlist, self.playlist,
-                                        artist_match.at[index, "Artist"],
-                                        sort_by="rarely")
+            partial = e.filter_and_order(
+                songs=self.songlist,
+                artist=artist_match.at[index, "Artist"],
+                sort_by="rarely"
+            )
             full = pd.concat([full, partial])
             for index2 in partial.index:
                 song = self.search_song(partial.at[index2, "Artist"],

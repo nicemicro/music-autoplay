@@ -362,10 +362,18 @@ class MusicHandler():
             #response.to_csv("list.csv")
         return response
     
-    def new_songlist(self, sort_by: str, min_play: int, max_play: int) -> None:
-        self.comm_que.put(["new_songlist", {"sort_by": sort_by,
-                                            "min_play": min_play,
-                                            "max_play": max_play}])
+    def new_songlist(
+        self, sort_by: str, min_play: int, max_play: int, per_album: bool=True
+    ) -> None:
+        self.comm_que.put([
+            "new_songlist",
+            {
+                "sort_by": sort_by,
+                "min_play": min_play,
+                "max_play": max_play,
+                "per_album": per_album
+            }
+        ])
         #self.db.new_songlist(sort_by=sort_by, min_play=min_play,
         #                     max_play=max_play)
         
@@ -428,8 +436,8 @@ class MusicHandler():
                 self.find_suggested_song()
         playlistend = self.song_on_playlist(status)
         for songdata in playlistend:
-            songdata["display"] = (songdata["pos"] + ". " + songdata["artist"] + " - " + \
-                                   songdata["title"])
+            songdata["display"] = (
+                f"{songdata['pos']}. {songdata['artist']} - {songdata['title']}")
             if not "album" in songdata:
                 songdata["album"] = ""
             songdata["status"] = ""

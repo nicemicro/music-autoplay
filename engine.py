@@ -1085,11 +1085,11 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     ]]
 
 #%%
-def find_not_played(
-    songlist: pd.DataFrame,
-    playlist: pd.DataFrame,
+def filter_and_order(
     artist: str = "",
     album: str = "",
+    songlist: Optional[pd.DataFrame] = None,
+    songs: Optional[pd.DataFrame] = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -1110,6 +1110,10 @@ def find_not_played(
     per_album: whether a song that is on multiple albums should appear as
         separate entries per album (True) or not (False)
     """
+    if songlist is None and songs is None:
+        raise ValueError(
+            "Songlist or songs is needed."
+        )
     sort_by = "plays"
     min_play = 0
     max_play = 0
@@ -1125,155 +1129,50 @@ def find_not_played(
             per_album = value
     artist = artist.lower()
     album = album.lower()
-    songlist = songlist.copy(deep=False)
-    songlist["artist_l"] = songlist["Artist"].str.lower()
-    songlist["title_l"] = songlist["Title"].str.lower()
-    songlist["album_l"] = songlist["Album"].fillna("").str.lower()
-    if artist == "":
-        if per_album:
-            artist_songs = songlist.groupby(
-                ["artist_l", "album_l", "title_l"]
-            ).agg(
-                {
-                    "Time added": ["count", "max", "min"],
-                    "Artist": ["max"],
-                    "Album": ["max"],
-                    "Title": ["max"],
-                }
-            )
-            artist_songs = artist_songs.reset_index(drop=False).set_axis(
-                [
-                    "artist_l",
-                    "album_l",
-                    "title_l",
-                    "Played",
-                    "Played last",
-                    "Added first",
-                    "Artist",
-                    "Album",
-                    "Title",
-                ],
-                axis=1,
-            )
-        else:
-            artist_songs = songlist.groupby(["artist_l", "title_l"]).agg(
-                {
-                    "Time added": ["count", "max", "min"],
-                    "Artist": ["max"],
-                    "Album": ["max"],
-                    "Title": ["max"],
-                }
-            )
-            artist_songs = artist_songs.reset_index(drop=False).set_axis(
-                [
-                    "artist_l",
-                    "title_l",
-                    "Played",
-                    "Played last",
-                    "Added first",
-                    "Artist",
-                    "Album",
-                    "Title",
-                ],
-                axis=1,
-            )
+    if songs is None:
+        songs = summarize_songlist(songlist)
     else:
-        if album == "":
-            artist_songs = songlist[(songlist["artist_l"] == artist)]
-            if per_album:
-                artist_songs = artist_songs.groupby(["title_l", "album_l"]).agg(
-                    {
-                        "Time added": ["count", "max", "min"],
-                        "Artist": ["max"],
-                        "Album": ["max"],
-                        "Title": ["max"],
-                    }
-                )
-                artist_songs = artist_songs.reset_index(drop=False).set_axis(
-                    [
-                        "title_l",
-                        "album_l",
-                        "Played",
-                        "Played last",
-                        "Added first",
-                        "Artist",
-                        "Album",
-                        "Title",
-                    ],
-                    axis=1,
-                )
-            else:
-                artist_songs = artist_songs.groupby(["title_l"]).agg(
-                    {
-                        "Time added": ["count", "max", "min"],
-                        "Artist": ["max"],
-                        "Album": ["max"],
-                        "Title": ["max"],
-                    }
-                )
-                artist_songs = artist_songs.reset_index(drop=False).set_axis(
-                    [
-                        "title_l",
-                        "Played",
-                        "Played last",
-                        "Added first",
-                        "Artist",
-                        "Album",
-                        "Title",
-                    ],
-                    axis=1,
-                )
-        else:
-            artist_songs = (
-                songlist[
-                    (songlist["artist_l"] == artist)
-                    & (songlist["album_l"] == album)
-                ]
-                .groupby(["title_l"])
-                .agg(
-                    {
-                        "Time added": ["count", "max", "min"],
-                        "Artist": ["max"],
-                        "Album": ["max"],
-                        "Title": ["max"],
-                    }
-                )
-            )
-            artist_songs = artist_songs.reset_index(drop=False).set_axis(
-                [
-                    "title_l",
-                    "Played",
-                    "Played last",
-                    "Added first",
-                    "Artist",
-                    "Album",
-                    "Title",
-                ],
-                axis=1,
-            )
-    if artist_songs.empty:
-        print("Error")
-        return artist_songs
-    merged = remove_played(artist_songs, playlist)
-    merged = merged[(merged["Played"] >= min_play)][
+        songs = songs.copy(deep=False)
+    if artist != "":
+        songs = songs[(songs["artist_l"]==artist)]
+    if album != "":
+        songs = songs[(songs["album_l"]==album)]
+    if songs.empty:
+        print("Results are empty")
+        return songs
+    if not per_album:
+        songs = (
+            songs
+            .groupby(["artist_l", "title_l"])
+            .agg({
+                "Played": "sum",
+                "Played last": "max",
+                "Added first": "min",
+                "Artist": "min",
+                "Title": "min"
+            })
+            .reset_index(drop=False)
+        )
+        songs["Album"] = ""
+        songs["album_l"] = ""
+    songs = songs[(songs["Played"] >= min_play)][
         ["Artist", "Album", "Title", "Played", "Added first", "Played last"]
     ]
     if max_play > 0:
-        merged = merged[(merged["Played"] <= max_play)]
+        songs = songs[(songs["Played"] <= max_play)]
     if sort_by == "recent p":
-        merged = merged.sort_values(by="Played last", ascending=False)
+        songs = songs.sort_values(by="Played last", ascending=False)
     elif sort_by == "old p":
-        merged = merged.sort_values(by="Played last", ascending=True)
+        songs = songs.sort_values(by="Played last", ascending=True)
     elif sort_by == "new add":
-        merged = merged.sort_values(by="Added first", ascending=False)
+        songs = songs.sort_values(by="Added first", ascending=False)
     elif sort_by == "rarely":
-        merged = merged.sort_values(by=["Played", "Played last"], ascending=True)
+        songs = songs.sort_values(by=["Played", "Played last"], ascending=True)
     else:
-        merged = merged.sort_values(by=["Played", "Played last"], ascending=False)
-    return merged.reset_index(drop=True)
+        songs = songs.sort_values(by=["Played", "Played last"], ascending=False)
+    return songs.reset_index(drop=True)
 
 
-#%%
 def find_old_song(
     songlist: pd.DataFrame,
     playlist: pd.DataFrame,

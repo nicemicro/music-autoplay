@@ -75,7 +75,8 @@ def not_played(songlist, playlist, artist='', album='', **kwargs):
             page = value
         if key == 'debug':
             debug = value
-    songs = e.find_not_played(songlist, playlist, artist, album, **kwargs)
+    songs = e.filter_and_order(artist, album, songlist, **kwargs)
+    songs = e.remove_played(songs, playlist)
     songs = songs[page*10:(page+1)*10]
     if len(songs.index) == 0:
         return songs[["Artist", "Album", "Title", "Played"]]
