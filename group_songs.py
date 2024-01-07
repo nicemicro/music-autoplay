@@ -264,10 +264,11 @@ def create_groupings(
     return matrix
 
 if __name__ == "__main__":
-    songlist, artists, albums, playlist = e.load_data()
+    songlist, saved_songs, playlist = e.load_data()
     songs = e.summarize_songlist(songlist).sort_values(by="Played", ascending=False)
+    songs = e.revise_summarized_list(saved_songs, songs)
     indexlist = e.make_indexlist(songlist, songs)
-    similarities = e.summarize_similars(songs=songs, indexlist=indexlist)
+    similarities = e.summarize_similars(songs, indexlist=indexlist)
     groups: dict[str, list[str]] = {}
     initial_search: int = 20
     points: dict[str, pd.DataFrame] = initial_similars(

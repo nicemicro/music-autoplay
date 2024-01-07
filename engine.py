@@ -74,74 +74,10 @@ class Cache():
         )
         return result[(result["Place"].notna())]
 
-def load_partial(
-    songlist: pd.DataFrame,
-    artists: pd.DataFrame,
-    albums: pd.DataFrame,
-    filename: str
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Loads the newest plays and adds it to the current songlist.
-    """
-    new_songs: pd.DataFrame = pd.read_csv(
-        filename,
-        delimiter=",",
-        header=None,
-        names=["Artist", "Album", "Title", "Time added"],
-        parse_dates=["Time added"],
-    )
-    new_songs = new_songs[(new_songs["Time added"]).notnull()]
-    oldest = new_songs["Time added"].min()
-    songlist = (
-        pd.concat([new_songs, songlist[(songlist["Time added"] < oldest)]])
-        .sort_values(by=["Time added"], ascending=[False])
-        .reset_index(drop=True)
-    )
-    songlist2 = songlist.copy(deep=False)
-    songlist2["artist_l"] = songlist2["Artist"].str.lower()
-    all_artists = songlist2.groupby("artist_l").agg({"Artist": "max"})
-    all_artists = all_artists.reset_index(drop=False)
-    old_artists = artists.copy()
-    old_artists["artist_l"] = old_artists["Artist"].str.lower()
-    artists = pd.merge(old_artists, all_artists, how="outer", on="artist_l")
-    artists.columns = ["Artist2", "artist_l", "Artist"]
-    albums = (
-        songlist2.drop_duplicates(subset=["Artist", "Album"])
-        .drop("Title", 1)
-        .drop("Time added", 1)
-    )
-    # TODO
-    # albums = (Need to do something to conserve album order)
-    return songlist, artists[["Artist"]], albums
-
-
-def load_songlist(
-    filename: str = "songlist.csv",
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Loads all the songs from the properly formatted csv file.
-    Returns:
-        songlist - all the songs with available play information
-        artists - the unique artists
-        albums - the unique artist + album combinations
-    """
-    songlist: pd.DataFrame = pd.read_csv(
-        filename, delimiter=",", parse_dates=["Time added"]
-    )
-    print("List loaded")
-    artists = pd.DataFrame(songlist[:]["Artist"].unique())
-    artists.columns = ["Artist"]
-    print("Artists aquired")
-    albums = (
-        songlist.drop_duplicates(subset=["Artist", "Album"])
-        .drop("Title", 1)
-        .drop("Time added", 1)
-    )
-    print("Albums aquired")
-    return songlist, artists, albums
 
 def make_indexlist(songlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
     songlist = songlist.copy(deep=False)
+    songs = songs.copy(deep=False).reset_index(drop=False)
     songlist["artist_l"] = songlist["Artist"].str.lower()
     songlist["title_l"] = songlist["Title"].str.lower()
     songlist["album_l"] = songlist["Album"].fillna("").str.lower()
@@ -184,8 +120,8 @@ def make_indexlist(songlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
 
 
 def summarize_similars(
+    songs: pd.DataFrame,
     songlist: Optional[pd.DataFrame] = None,
-    songs: Optional[pd.DataFrame] = None,
     indexlist: Optional[pd.DataFrame] = None,
     points: Optional[list[int]] = None,
     timeframe: int = 30,
@@ -194,12 +130,12 @@ def summarize_similars(
     Creates a list for all songs played after each other, scoring and summarizing
     the "closeness" of the two songs.
     """
+    if songs is None or (songlist is None and indexlist is None):
+        raise ValueError("Either songlist or indexlist is needed")
     if points is None:
         points = [10, 5, 2, 1, 1]
-    if songs is None or indexlist is None:
-        if songlist is None:
-            raise ValueError("Either songlist or songs+indexlist is needed")
-        songs = summarize_songlist(songlist)
+    if indexlist is None:
+        assert songlist is not None
         indexlist = make_indexlist(songlist, songs)
     result: list[pd.DataFrame] = []
     shifted: pd.DataFrame
@@ -265,7 +201,7 @@ def find_similar_id(
         points = [10, 5, 2, 1, 1]
     if similarities is None:
         similarities = summarize_similars(
-            songs=songs,
+            songs,
             indexlist=indexlist,
             points=points,
             timeframe=timeframe
@@ -320,7 +256,7 @@ def find_similar(
         points = [10, 5, 2, 1, 1]
     artist = artist.lower()
     title = title.lower()
-    if pd.isnull(album):
+    if pd.isnull(album) or album is None:
         album == ""
     album = album.lower()
     if similarities is None:
@@ -333,7 +269,7 @@ def find_similar(
                 assert False
             indexlist = make_indexlist(songlist, songs)
         similarities = summarize_similars(
-            songs=songs,
+            songs,
             indexlist=indexlist,
             points=points,
             timeframe=timeframe
@@ -346,10 +282,12 @@ def find_similar(
     result_sum: pd.DataFrame
     if timeframe > 0:
         result_sum = pd.merge(
-            sum_by_index, songs, left_on="id_after", right_on="song_id"
+            sum_by_index, songs, left_on="id_after", right_index=True
         )
     else:
-        result_sum = pd.merge(sum_by_index, songs, on="song_id")
+        result_sum = pd.merge(
+            sum_by_index, songs, left_on="song_id", right_index=True
+        )
     return result_sum[["Artist", "Album", "Title", "Point", "Last", "Place"]]
 
 
@@ -531,8 +469,6 @@ def generate_list(
             else:
                 points = value
     if artist != "" and title != "":
-        if album == "":
-            album = np.NaN
         new_line = pd.DataFrame(
             [[artist, album, title, datetime.datetime.utcnow()]],
             columns=["Artist", "Album", "Title", "Time added"],
@@ -592,7 +528,9 @@ def generate_list(
         else:
             if cumul_find:
                 similars = cumul_similar(
-                    songlist, playlist, timeframe, cumul_points, cache=cache
+                    playlist, timeframe, cumul_points, cache=cache,
+                    songlist=songlist, songs=songs, indexlist=indexlist,
+                    similarities=similarities
                 )
             else:
                 if cache.is_in_cache(artist, album, title):
@@ -779,7 +717,7 @@ def cumul_similar(
     result["Point"] = result["Sum"] / result["Sum"].sum() * 100
     result = result[(result["Point"] > 0)]
     result["Place"] = result.index + 1
-    result["Last"] = result["O0"].astype(pd.Int64Dtype())
+    result["Last"] = result["O0"].astype("Int32")
     if not show_all:
         result = result[["Artist", "Album", "Title", "Point", "Last", "Place"]]
     return result
@@ -1078,9 +1016,9 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     result = pd.concat(
         [overwrite[(overwrite["Over"].isna())], no_album]
     ).sort_values(["Artist", "Album", "Title"]).reset_index(drop=True)
-    result = result.reset_index().rename(columns={"index": "song_id"})
+    result.index.name = "song_id"
     return result[[
-        "song_id", "Artist", "Album", "Title", "Played", "Played last",
+        "Artist", "Album", "Title", "Played", "Played last",
         "Added first", "artist_l", "album_l", "title_l"
     ]]
 
@@ -1213,41 +1151,84 @@ def unique(playlist):
 
 def save_data(
     songlist: pd.DataFrame,
-    artists: pd.DataFrame,
-    albums: pd.DataFrame,
+    songs: pd.DataFrame,
     playlist: pd.DataFrame,
     filename: str = "data",
 ) -> None:
     """
     Saves the songlist and the playlist in a pickle file.
     """
-    songlist.to_csv(filename + "_songlist.csv", index=False, header=False)
-    artists.to_csv(filename + "_artists.csv", index=False, header=False)
-    albums.to_csv(filename + "_albums.csv", index=False, header=False)
-    playlist.to_csv(filename + "_playlist.csv", index=False, header=False)
+    songlist.to_csv(filename + "_songlist.csv", index=False, header=True)
+    songs.sort_index().to_csv(filename + "_songs.csv", index=True, header=True)
+    playlist.to_csv(filename + "_playlist.csv", index=False, header=True)
+
+
+def revise_summarized_list(
+    old: pd.DataFrame,
+    new: pd.DataFrame
+) -> pd.DataFrame:
+    """Merges the new database into the old one overwriting play data, but
+    keeps the grouping and the song_id from the old data."""
+    old = old[["artist_l", "title_l", "album_l", "Group"]].reset_index(drop=False)
+    merged = (
+        pd.merge(old, new, on=["artist_l", "title_l", "album_l"], how="outer")
+        .sort_values(by="song_id", ascending=True)
+    )
+    #Some data in the old database might not be in the new one (i.e. album has
+    #been added)
+    removed = merged[(merged["Title"].isna())]
+    merged = merged[(merged["Title"].notna())]
+    removed = pd.merge(
+        removed[["song_id", "artist_l", "title_l", "Group"]],
+        merged[(merged["song_id"].isna())][[
+            "artist_l", "album_l", "title_l", "Artist", "Album", "Title",
+            "Played", "Played last", "Added first"
+        ]],
+        on=["artist_l", "title_l"],
+        how="right"
+    )
+    merged = (
+        pd.concat([merged[(merged["song_id"].notna())], removed])
+        .reset_index(drop=True)
+    )
+    #we give new song_id to those elements that hasn't been in the old db
+    new_entries = merged[(merged["song_id"].isna())].index
+    new_ids = list(range(
+        int(merged["song_id"].max()) + 1,
+        int(merged["song_id"].max() + 1 + len(new_entries))
+        ))
+    merged.loc[new_entries, "song_id"] = new_ids
+    merged["song_id"] = merged["song_id"].astype(int)
+    merged["Played"] = merged["Played"].astype(int)
+    merged = merged.set_index("song_id")
+    return merged[[
+        "Artist", "Album", "Title", "Played", "Played last",
+        "Added first", "Group", "artist_l", "album_l", "title_l"
+    ]]
 
 
 def load_data(
     filename: str = "data",
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Loads the data from CSV files."""
     songlist = pd.read_csv(
         filename + "_songlist.csv",
         sep=",",
-        names=["Artist", "Album", "Title", "Time added"],
+        header=0,
         parse_dates=["Time added"],
     )
-    artists = pd.read_csv(
-        filename + "_artists.csv",
-        sep=",",
-        names=["Artist"]
-    )
-    albums = pd.read_csv(
-        filename + "_albums.csv",
-        sep=",",
-        names=["Artist", "Albums"]
-    )
     songlist["Album"] = songlist["Album"].fillna("")
+    songs = pd.read_csv(
+        filename + "_songs.csv",
+        sep=",",
+        header=0,
+        index_col=0,
+        parse_dates=["Played last",	"Added first"],
+        dtype={"Group": "Int8"},
+    )
+    songs["artist_l"] = songs["Artist"].str.lower()
+    songs["title_l"] = songs["Title"].str.lower()
+    songs["album_l"] = songs["Album"].fillna("").str.lower()
     now = datetime.datetime.utcnow()
     playlist = songlist[(
         songlist["Time added"] >
@@ -1258,16 +1239,43 @@ def load_data(
     playlist["Trial"] = None
     playlist["Last"] = None
     if unique(playlist) < 800:
-        return songlist, artists, albums, playlist
+        return songlist, songs, playlist
     playlist2 = (
         playlist[(
             playlist["Time added"] > now - datetime.timedelta(days=10)
         )].reset_index(drop=True)
     )
     if unique(playlist2) > 600:
-        return songlist, artists, albums, playlist2
+        return songlist, songs, playlist2
     unique_songs: int = unique(playlist[-600:])
     playlist = (
         playlist[-(1200-unique_songs):]
     ).reset_index(drop=True)
-    return songlist, artists, albums, playlist
+    return songlist, songs, playlist
+
+
+def load_partial(
+    songlist: pd.DataFrame,
+    songs: pd.DataFrame,
+    filename: str
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Loads the newest plays and adds it to the current songlist.
+    """
+    new_songs: pd.DataFrame = pd.read_csv(
+        filename,
+        delimiter=",",
+        header=None,
+        names=["Artist", "Album", "Title", "Time added"],
+        parse_dates=["Time added"],
+    )
+    new_songs = new_songs[(new_songs["Time added"]).notnull()]
+    oldest = new_songs["Time added"].min()
+    songlist = (
+        pd.concat([new_songs, songlist[(songlist["Time added"] < oldest)]])
+        .sort_values(by=["Time added"], ascending=[False])
+        .reset_index(drop=True)
+    )
+    songs = summarize_songlist(songlist)
+    return songlist, songs
+

@@ -133,19 +133,19 @@ def not_played(songlist, playlist, artist='', album='', **kwargs):
 
 #%%
 def main_loop():
-    global songlist, artists, albums, playlist
     print('Select a command')
     
 if __name__ == '__main__':
     print('Welcome to the CLI of the playlist generator program.')
     cmd = input('Press y to load files. ')
     if cmd in ('y', 'Y'):
-        fname = input('Loading files. Enter file name (default: data.pckl): ')
+        fname = input('Loading files. Enter file name (default: data): ')
         if fname == '':
-            songlist, artists, albums, playlist = e.load_data()
+            songlist, songs, playlist = e.load_data()
         else:
-            songlist, artists, albums, playlist = e.load_data(fname)
+            songlist, songs, playlist = e.load_data(fname)
         print('Loaded.')
+        songs = e.revise_summarized_list(songs, e.summarize_songlist(songlist))
     main_loop()
     print('')
     print('Bye')

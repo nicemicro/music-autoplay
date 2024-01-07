@@ -296,10 +296,11 @@ if __name__ == '__main__':
     if cmd in ("l", "L"):
         fname = input("Loading files. Enter file name (default: data.pckl): ")
         if fname == '':
-            songlist, artists, albums, playlist = e.load_data()
+            songlist, songs, playlist = e.load_data()
         else:
-            songlist, artists, albums, playlist = e.load_data(fname)
+            songlist, songs, playlist = e.load_data(fname)
         print("Loaded.")
+        artists = songs["Artist"].unique()
         artist_hit = artist_pop(songlist, artists)
         artist_num = 20
         n_mat = artist_matrix(songlist, artists, 0, artist_num)

@@ -234,7 +234,7 @@ class DataBases:
                 index not in self.sugg_cache or
                 e.remove_played(self.sugg_cache[index], self.playlist).empty
             ):
-                print(f" Either {index} is not listed in the playlist or is out of suggestions")
+                #print(f" Either {index} is not listed in the playlist or is out of suggestions")
                 index -= 1
                 continue
             place, trial = e.choose_song(self.sugg_cache[index], self.playlist)
@@ -500,16 +500,16 @@ class DataBases:
     def load_file(self, fname=""):
         if fname == "":
             fname = "data"
-        self.songlist, self.artists, self.albums, self.playlist = \
-            e.load_data(fname)
+        self.songlist, saved_songs, self.playlist = e.load_data(fname)
         self.songs = e.summarize_songlist(self.songlist)
-        self.similarities = e.summarize_similars(songlist=self.songlist)
+        self.songs = e.revise_summarized_list(saved_songs, self.songs)
+        self.similarities = e.summarize_similars(self.songs, songlist=self.songlist)
 
     def save_file(self, fname=""):
         if fname == "":
             fname= "data"
         #print("Start file save")
         e.save_data(
-            self.songlist, self.artists, self.albums, self.playlist, fname
+            self.songlist, self.songs, self.playlist, fname
         )
         #print("Save complete")
