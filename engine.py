@@ -31,7 +31,9 @@ class Cache():
         if self.is_in_cache(artist, album, title):
             # TODO: this should delete the current line in the cache and inser the new one
             return
-        #similars_list = similars_list[["Artist", "Album", "Title", "Point", "Last"]]
+        similars_list = similars_list.copy()[[
+            "Artist", "Album", "Title", "Point", "Place"
+        ]]
         line = (
             similars_list.sort_values(by=["Artist", "Album", "Title"]).
             set_index(["Artist", "Album", "Title"]).
@@ -39,7 +41,6 @@ class Cache():
         )
         index = pd.MultiIndex.from_tuples([
             (artist, album, title, "Point"),
-            (artist, album, title, "Last"),
             (artist, album, title, "Place")],
             names=["Artist", "Album", "Title", ""])
         line.index = index
@@ -170,14 +171,22 @@ def summarize_similars(
 def get_song_id(
     songs: pd.DataFrame,
     artist: str,
-    title: str,
+    title: str = "",
     album: str = "",
+    group: int = -1
 ) -> list[int]:
+    artist = artist.lower().replace(",", "").replace("\"", "")
+    album = album.lower().replace(",", "").replace("\"", "")
+    title = title.lower().replace(",", "").replace("\"", "")
     song_matches: pd.DataFrame = (
-        (songs["artist_l"] == artist) & (songs["title_l"] == title)
+        (songs["artist_l"] == artist)
     )
+    if title != "":
+        song_matches = (song_matches) & (songs["title_l"] == title)
     if album != "":
         song_matches = (song_matches) & (songs["album_l"] == album)
+    if group != -1:
+        song_matches = (song_matches) & (songs["Group"] == group)
     return list(songs[song_matches].index)
 
 
@@ -207,25 +216,31 @@ def find_similar_id(
             timeframe=timeframe
         )
     if timeframe > 0:
-        similarities = similarities[similarities["song_id"].isin(song_id)]
+        similarities = similarities[
+            (similarities["song_id"].isin(song_id)) &
+            ~(similarities["id_after"]).isin(song_id)
+        ]
+        similarities_group: pd.Grouper = similarities.groupby(["id_after"])
     else:
-        similarities = similarities[similarities["id_after"].isin(song_id)]
-    similarities_group: pd.Grouper = similarities.groupby(["song_id", "id_after"])
+        similarities = similarities[
+            (similarities["id_after"].isin(song_id)) &
+            ~((similarities["song_id"].isin(song_id)))]
+        similarities_group: pd.Grouper = similarities.groupby(["song_id"])
     sum_by_index: pd.DataFrame = (
         similarities_group.agg({"Time added": ["max"], "Point": ["sum"]})
         .reset_index()
-        .set_axis(["song_id", "id_after", "Played last", "Point"], axis=1)
+        .set_axis(["song_id", "Played last", "Point"], axis=1)
         .sort_values(by=["Point", "Played last"], ascending=[False, False])
         .reset_index(drop=True)
     )
     sum_by_index["Last"] = sum_by_index.index + 1
     sum_by_index["Place"] = sum_by_index["Last"]
-    return sum_by_index
+    return sum_by_index.set_index("song_id")
 
 
 def find_similar(
     artist: str,
-    title: str,
+    title: str = "",
     album: str = "",
     songlist: Optional[pd.DataFrame] = None,
     songs: Optional[pd.DataFrame] = None,
@@ -241,6 +256,10 @@ def find_similar(
     is [10,5,2,1,1] which means that the song played after searched song gets
     10 points, the 2nd song played after the searched song gets 5, the third
     gets 2, etc.
+    If the similarities DataFrame is supplied, the points and timeframe will
+    be meaningless, however the sign of the timeframe will determine whether
+    we look for songs that are played after (positive timeframe) or before
+    (negative timeframe) the selected song.
     """
     if (
         songlist is None and
@@ -279,22 +298,22 @@ def find_similar(
         return pd.DataFrame()
     sum_by_index: pd.DataFrame = find_similar_id(
         songs, song_id, timeframe, points, similarities=similarities)
-    result_sum: pd.DataFrame
-    if timeframe > 0:
-        result_sum = pd.merge(
-            sum_by_index, songs, left_on="id_after", right_index=True
-        )
-    else:
-        result_sum = pd.merge(
-            sum_by_index, songs, left_on="song_id", right_index=True
-        )
-    return result_sum[["Artist", "Album", "Title", "Point", "Last", "Place"]]
+    result_sum: pd.DataFrame = pd.merge(
+        sum_by_index,
+        songs.drop(["Played last", "Added first"], axis=1),
+        left_index=True,
+        right_index=True
+    )
+    return result_sum
 
 
 def find_similar_artist(
-    songlist: pd.DataFrame,
     artist: str,
-    timeframe: int = 30 * 60,
+    songlist: Optional[pd.DataFrame] = None,
+    songs: Optional[pd.DataFrame] = None,
+    indexlist: Optional[pd.DataFrame] = None,
+    similarities: Optional[pd.DataFrame] = None,
+    timeframe: int = 30,
     points: Optional[list[int]] = None,
 ) -> pd.DataFrame:
     """
@@ -304,46 +323,25 @@ def find_similar_artist(
     which means that the artist played after searched artist gets 10 points,
     the 2nd song played after the current song gets 5, the third gets 2, etc.
     """
-    if points is None:
-        points = [10, 5, 2, 1, 1]
-    artist = artist.lower()
-    selected_artist: pd.DataFrame = songlist[(songlist["Artist"].str.lower() == artist)]
-    result: pd.DataFrame = [
-        songlist[
-            (songlist["Time added"] > time)
-            & (songlist["Time added"] < time + datetime.timedelta(seconds=timeframe))
-        ]
-        .sort_values(by=["Time added"])
-        .reset_index(drop=True)
-        for time in selected_artist["Time added"]
-    ]
-    for i in range(len(result)):
-        same_artist = result[i][
-            (result[i]["Artist"].str.lower() == artist)
-        ].index.values
-        if same_artist.size > 0:
-            result[i] = result[i][0 : same_artist[0]]
-        result[i]["Point"] = 0
-        el_num = len(result[i].index)
-        result[i]["Point"] = [
-            points[j] if j < len(points) else 0 for j in range(el_num)
-        ]
-    result_conc: pd.DataFrame = pd.concat(result, sort=False).reset_index(drop=True)
+    results: pd.DataFrame = find_similar(
+        artist,
+        songlist=songlist,
+        songs=songs,
+        indexlist=indexlist,
+        similarities=similarities,
+        timeframe=timeframe,
+        points=points
+    )
     result_sum = (
-        result_conc.groupby(["Artist"])
-        .agg({"Time added": ["max"], "Point": ["sum"]})
-        .reset_index()
+        results.groupby(["artist_l"])
+        .agg({"Played last": ["max"], "Point": ["sum"], "Artist": ["max"]})
+        .set_axis(["Played last", "Point", "Artist"], axis=1)
+        .sort_values(["Point", "Played last"], ascending=[False, False])
+        .reset_index(drop=False)
     )
-    result_sum = result_sum.set_axis(
-        ["Artist", "Played last", "Point"], axis=1
-    )
-    result_sum = result_sum[(result_sum["Point"] > 0)].sort_values(
-        by=["Point", "Played last"], ascending=[False, False]
-    )
-    return result_sum.reset_index(drop=True)
+    return result_sum
 
 
-#%%
 def choose_song(
     similars: pd.DataFrame, playlist: pd.DataFrame, **kwargs
 ) -> tuple[int, int]:
@@ -457,7 +455,9 @@ def generate_list(
     base_percent: float = 30
     timeframe: int = 30 * 60
     points: list[int] = [10, 5, 2, 1, 1]
-    cumul_points: npt.NDArray[np.int32] = np.array([[10, 0, 0], [10, 5, 0], [5, 2, 1]])
+    cumul_points: npt.NDArray[np.int32] = np.array(
+        [[10, 0, 0], [10, 5, 0], [5, 2, 1]]
+    )
     for key, value in kwargs.items():
         if key == "base_percent":
             base_percent = min(100, max(1, value))
@@ -476,49 +476,47 @@ def generate_list(
         playlist = pd.concat([playlist, new_line], ignore_index=True, sort=False)
     for _ in range(length):
         if not playlist.empty:
-            last = len(playlist) - 1
-            artist = playlist["Artist"].values[last]
-            title = playlist["Title"].values[last]
-            if playlist["Album"].isnull().values[last]:
+            artist = playlist["Artist"].values[-1]
+            title = playlist["Title"].values[-1]
+            if playlist["Album"].isnull().values[-1]:
                 album = ""
             else:
-                album = playlist["Album"].values[last]
+                album = playlist["Album"].values[-1]
         album = str(album)
         assert isinstance(album, str)
         if artist == "" or title == "":
-            if artist == "":
-                all_songs = (
-                    songlist.groupby(["Artist", "Album", "Title"])["Time added"]
-                    .count()
-                    .reset_index()
-                    .sort_values(by=["Time added"], ascending=[False])
+            if songs is None:
+                songs = summarize_songlist(songlist)
+            search_in: pd.DataFrame = (
+                songs.sort_values(by="Played", ascending=False)
+            )
+            if artist != "":
+                search_in = (
+                    search_in[(search_in["Artist"]) == artist]
                     .reset_index(drop=True)
                 )
-            else:
-                artist_songs = songlist[(songlist["Artist"].str.lower() == artist)]
-                all_songs = (
-                    artist_songs.groupby(["Artist", "Album", "Title"])[
-                        "Time added"
-                    ]
-                    .count()
-                    .reset_index()
-                    .sort_values(by=["Time added"], ascending=[False])
+            if album != "":
+                search_in = (
+                    search_in[(search_in["Album"]) == album]
                     .reset_index(drop=True)
                 )
-            point_sum = all_songs["Time added"].sum()
+            if search_in.empty:
+                print("nothing matches what you want")
+                break
+            point_sum = search_in["Played"].sum()
             point_target = rnd.randint(0, int(point_sum * base_percent / 100))
             song_place = -1
             point = 0
             while point <= point_target:
                 song_place += 1
-                point += all_songs["Time added"].values[song_place]
+                point += search_in["Played"].values[song_place]
             playlist = pd.concat(
                 [
                     playlist,
                     pd.DataFrame(
-                        [[datetime.datetime.utcnow()]], columns=["Time added"]
+                        [[datetime.datetime.utcnow()]], columns=["Played"]
                     ).join(
-                        all_songs[song_place : song_place + 1][
+                        search_in[song_place : song_place + 1][
                             ["Artist", "Album", "Title"]
                         ].reset_index(drop=True)
                     ),

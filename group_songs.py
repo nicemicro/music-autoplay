@@ -21,24 +21,24 @@ def get_points(
         songs,
         song_id,
         timeframe=30,
-        similarities=similarities)[["id_after", "Point"]]
+        similarities=similarities)[["Point"]]
     similars_before = e.find_similar_id(
         songs,
         song_id,
         timeframe=-30,
-        similarities=similarities)[["song_id", "Point"]]
+        similarities=similarities)[["Point"]]
     similars = pd.merge(
         similars_after,
         similars_before,
         how="outer",
-        left_on="id_after",
-        right_on="song_id")
+        left_index=True,
+        right_index=True
+    )
     similars["Point_x"] = similars["Point_x"].fillna(0)
     similars["Point_y"] = similars["Point_y"].fillna(0)
     similars["Point"] = similars["Point_x"] + similars["Point_y"]
     #similars["Point"] = similars["Point"] / similars["Point"].sum()
-    similars["song_id"] = similars["song_id"].fillna(similars["id_after"])
-    return similars.sort_values(by="Point", ascending=False)[["song_id", "Point"]]
+    return similars.sort_values(by="Point", ascending=False)[["Point"]]
 
 def initial_similars(
     songs: pd.DataFrame,
@@ -54,7 +54,7 @@ def initial_similars(
     return similars_dict
 
 def compare_songs(a: pd.DataFrame, b: pd.DataFrame) -> float:
-    merged = pd.merge(a, b, on="song_id")
+    merged = pd.merge(a, b, left_index=True, right_index=True)
     #merged["multip"] = merged["Point_x"] * merged["Point_y"]
     merged["point_norm_x"] = merged["Point_x"] / a["Point"].sum()
     merged["point_norm_y"] = merged["Point_y"] / b["Point"].sum()
@@ -84,7 +84,7 @@ def merge_group_data(
     #weight_a: int,
     #weight_b: int
 ) -> pd.DataFrame:
-    merged = pd.merge(a, b, on="song_id", how="outer")
+    merged = pd.merge(a, b, left_index=True, right_index=True, how="outer")
     merged["Point_x"] = merged["Point_x"].fillna(0)
     merged["Point_y"] = merged["Point_y"].fillna(0)
     merged["Point"] = (
@@ -94,7 +94,7 @@ def merge_group_data(
     #)
         merged["Point_x"] + merged["Point_y"]
     )
-    return merged[["song_id", "Point"]].sort_values(by="Point", ascending=False)
+    return merged[["Point"]].sort_values(by="Point", ascending=False)
 
 def merge_group(
     points: dict[str, pd.DataFrame],
@@ -265,12 +265,15 @@ def create_groupings(
 
 if __name__ == "__main__":
     songlist, saved_songs, playlist = e.load_data()
-    songs = e.summarize_songlist(songlist).sort_values(by="Played", ascending=False)
-    songs = e.revise_summarized_list(saved_songs, songs)
+    songs = e.summarize_songlist(songlist)
+    songs = (
+        e.revise_summarized_list(saved_songs, songs)
+        .sort_values(by="Played", ascending=False)
+    )
     indexlist = e.make_indexlist(songlist, songs)
     similarities = e.summarize_similars(songs, indexlist=indexlist)
     groups: dict[str, list[str]] = {}
-    initial_search: int = 20
+    initial_search: int = 30
     points: dict[str, pd.DataFrame] = initial_similars(
         songs, similarities, initial_search
     )

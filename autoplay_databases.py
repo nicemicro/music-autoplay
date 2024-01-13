@@ -209,7 +209,7 @@ class DataBases:
         new_list = self.mergesongdata(new_list)
         return new_list
 
-    def suggest_song(self) -> pd.DataFrame:
+    def suggest_song(self, group_song: int = -1) -> pd.DataFrame:
         song = pd.DataFrame()
         last_index = max(self.playlist.index)
         print()
@@ -234,11 +234,10 @@ class DataBases:
                 index not in self.sugg_cache or
                 e.remove_played(self.sugg_cache[index], self.playlist).empty
             ):
-                #print(f" Either {index} is not listed in the playlist or is out of suggestions")
                 index -= 1
                 continue
             place, trial = e.choose_song(self.sugg_cache[index], self.playlist)
-            print(f" -- Selecting from the list with length {len(self.sugg_cache[index])}: --")
+            print(f" -- From a list with length {len(self.sugg_cache[index])}: --")
             print(
                 self.sugg_cache[index][
                     0:max(5, list(self.sugg_cache[index].index).index(place)+2)
