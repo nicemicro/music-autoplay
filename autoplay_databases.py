@@ -124,14 +124,16 @@ class DataBases:
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
+        assert("songs" not in kwargs.keys())
         self.playablelist = e.filter_and_order(
             songs=self.songs, *args, **kwargs
         )
         self.playablelist = (
             e.remove_played(self.playablelist, self.playlist)
             .reset_index(drop=True)
-            .fillna("")
         )
+        self.playablelist["Album"] = self.playablelist["Album"].fillna("")
+        self.playablelist["album_l"] = self.playablelist["album_l"].fillna("")
         self.plstartindex = 0
         self.plendindex = 0
 
@@ -219,45 +221,44 @@ class DataBases:
             self.sugg_cache[last_index] = (
                 e.cumul_similar(
                     self.playlist,
-                    cache=self.similars_cache,
-                    similarities=self.similarities,
-                    songs=self.songs
+                    self.songs,
+                    self.similarities,
                 )
             )
         print(self.playlist[-5:])
         index = last_index
         artist: str = ""
+        avoid_artist: str = ""
         album: Union[str, float] = ""
         title: str = ""
         while song.empty and index >= 0:
+            choose_from = e.remove_played(self.sugg_cache[index], self.playlist)
             if (
                 index not in self.sugg_cache or
-                e.remove_played(self.sugg_cache[index], self.playlist).empty
+                choose_from.empty
             ):
                 index -= 1
                 continue
-            place, trial = e.choose_song(self.sugg_cache[index], self.playlist)
+            if not self.playlist.empty:
+                avoid_artist = self.playlist["Artist"].values[-1]
+            song_index, trial = e.choose_song(choose_from, avoid_artist)
             print(f" -- From a list with length {len(self.sugg_cache[index])}: --")
-            print(
-                self.sugg_cache[index][
-                    0:max(5, list(self.sugg_cache[index].index).index(place)+2)
-                ]
-            )
-            print(f"  selected from list:  {place}")
-            artist = self.sugg_cache[index].at[place, "Artist"]
-            album = self.sugg_cache[index].at[place, "Album"]
+            print(self.sugg_cache[index].head())
+            print(f"  selected from list:  {song_index}")
+            artist = self.sugg_cache[index].at[song_index, "Artist"]
+            album = self.sugg_cache[index].at[song_index, "Album"]
             if pd.isnull(album):
                 album = ""
             assert isinstance(album, str)
-            title = self.sugg_cache[index].at[place, "Title"]
+            title = self.sugg_cache[index].at[song_index, "Title"]
             song = self.search_song(
                 artist, album, title
             )
             if not song.empty:
-                song["Place"] = self.sugg_cache[index].at[place, "Place"]
-                song["Last"] = self.sugg_cache[index].at[place, "Last"]
+                song["Place"] = self.sugg_cache[index].at[song_index, "Place"]
+                song["Last"] = self.sugg_cache[index].at[song_index, "Last"]
                 song["Trial"] = trial
-            self.sugg_cache[index] = self.sugg_cache[index].drop(place)
+            self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
         index = len(self.playlist) - 1
         while song.empty and index >= 0:
             #Trying to find songs from similar artists
@@ -512,3 +513,6 @@ class DataBases:
             self.songlist, self.songs, self.playlist, fname
         )
         #print("Save complete")
+
+if __name__ == "__main__":
+    db = DataBases("data")

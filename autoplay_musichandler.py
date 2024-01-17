@@ -363,7 +363,7 @@ class MusicHandler():
         return response
     
     def new_songlist(
-        self, sort_by: str, min_play: int, max_play: int, per_album: bool=True
+        self, sort_by: str, min_play: int, max_play: int, per_album: bool=False
     ) -> None:
         self.comm_que.put([
             "new_songlist",
