@@ -263,6 +263,34 @@ def create_groupings(
     #print_groupings(groups, points, songs)
     return matrix
 
+def set_new_groups(
+    songs: pd.DataFrame,
+    groups: dict[str, list[str]],
+) -> pd.DataFrame:
+    result = songs.copy()
+    result["New_group"] = None
+    group_index: list[int] = []
+    groups_by_size = pd.DataFrame(
+        [[len(x)] for x in groups.values()],
+        index=groups.keys(),
+        columns=["len"]
+    ).sort_values("len", ascending=False)
+    for group_name in groups_by_size.index:
+        songselection = groups[group_name]
+        songselect_int = list(int(x) for x in songselection)
+        for index in result.loc[songselect_int, "Group"].value_counts().index:
+            if index not in group_index:
+                group_index.append(index)
+                result.loc[songselect_int, "New_group"] = index
+                break
+        else:
+            for index in range(1, 10, 1):
+                if index not in group_index:
+                    group_index.append(index)
+                    result.loc[songselect_int, "New_group"] = index
+                    break
+    return result
+
 if __name__ == "__main__":
     songlist, saved_songs, playlist = e.load_data()
     songs = e.summarize_songlist(songlist)
@@ -279,9 +307,9 @@ if __name__ == "__main__":
     )
     matrix: pd.DataFrame = matrix_songs(points)
     matrix = create_groupings(
-        songs, matrix, similarities, points, groups, initial_search, 15, 9)
-    group_index: int = 1
-    for songselection in groups.values():
-        songselect_int = list(int(x) for x in songselection)
-        songs.loc[songselect_int, "Group"] = group_index
-        group_index += 1
+        songs, matrix, similarities, points, groups, initial_search, 15, 9
+    )
+    new_songs = set_new_groups(songs, groups)
+    new_songs["Group"] = new_songs["New_group"]
+    new_songs = new_songs.drop("New_group", axis=1)
+
