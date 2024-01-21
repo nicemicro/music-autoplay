@@ -76,6 +76,7 @@ class MusicHandler():
         self.clear_playlist()
         self.tentative_volume: Optional[int] = None
         self.result_storage: dict[str, Optional[pd.DataFrame]] = {}
+        self.wanted_group: int = -1
             
     def clear_playlist(self) -> None:
         status = self.music.status()
@@ -157,8 +158,10 @@ class MusicHandler():
         #self.db.playlist_append(c_artist, c_album, c_title)
         assert not "suggest_song" in self.result_storage, \
             "This shouldn't be called if we already have a search going!"
-        #print("> Initiating search for new suggestion")
-        self.comm_que.put(["suggest_song", []])
+        group = self.wanted_group
+        self.wanted_group = -1
+        print(f"> Initiating search for new suggestion, group {group}")
+        self.comm_que.put(["suggest_song", [group]])
         #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
         #                                  c_title)
         self.result_storage["suggest_song"] = None
@@ -257,13 +260,16 @@ class MusicHandler():
             self.find_suggested_song()
         #print(f"executed mpd deletion {delfrom}-{delto} ({mpdlistlen})")
     
-    def delete_command(self, delfrom: int, delto: int, jumpnext: bool = False) -> None:
+    def delete_command(
+        self, delfrom: int, delto: int, jumpnext: bool = False
+    ) -> None:
         #print(f"> delete_command {delfrom}-{delto}")
         self.comm_que.put(["delete_song", [delfrom, delto, jumpnext]])
         self.result_storage["delete_song"] = None
     
-    def change_song(self, recalc: int) -> None:
-        #print(f"> change_song called with recalc={recalc}")
+    def change_song(self, recalc: int, group: int = -1) -> None:
+        print(f"> change_song called with recalc={recalc}, group={group}")
+        self.wanted_group = group
         status = self.music.status()
         mpdlistlen = int(status["playlistlength"])
         if "song" in status:

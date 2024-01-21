@@ -38,9 +38,9 @@ class DataBases:
         self.playablelist = pd.DataFrame([])
         self.plstartindex = 0
         self.plendindex = 0
-        self.music = MPD()                    # create music object
-        self.music.timeout = 100              # network timeout in seconds
-        self.music.idletimeout = None         # for fetching the result of idle command
+        self.music = MPD()               # create music object
+        self.music.timeout = 100         # network timeout in seconds
+        self.music.idletimeout = None    # for fetching the result of idle command
         self.music.connect("localhost", 6600)
 
     def search_song(
@@ -124,9 +124,9 @@ class DataBases:
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
-        assert("songs" not in kwargs.keys())
+        kwargs["songs"] = self.songs
         self.playablelist = e.filter_and_order(
-            songs=self.songs, *args, **kwargs
+            *args, **kwargs
         )
         self.playablelist = (
             e.remove_played(self.playablelist, self.playlist)
@@ -139,8 +139,8 @@ class DataBases:
 
     def mergesongdata(self, music_file_list: pd.DataFrame) -> pd.DataFrame:
         """
-        Merges the song list coming from MPD (music_file_list) with the list coming from the
-        database (songs).
+        Merges the song list coming from MPD (music_file_list) with the list
+        coming from the database (songs).
         """
         if music_file_list.empty:
             return pd.DataFrame([])
@@ -153,16 +153,20 @@ class DataBases:
                 continue
             music_file_list[dictkey+"_l"] = music_file_list[dictkey].str.lower()
             music_file_list[dictkey+"_l"] = (
-                music_file_list[dictkey+"_l"].str.replace(",", "").str.replace("\"", "")
+                music_file_list[dictkey+"_l"].str.replace(",", "")
+                .str.replace("\"", "")
             )
         #music_file_list.to_csv("music_file_list.csv")
         withalbum = self.songs[(self.songs["album_l"]) != ""]
         noalbum = self.songs[(self.songs["album_l"]) == ""]
         withalbum = pd.merge(
-            music_file_list, withalbum, how="inner", on=["artist_l", "album_l" ,"title_l"]
+            music_file_list, withalbum, how="inner",
+            on=["artist_l", "album_l" ,"title_l"]
         )
         withalbum = withalbum.set_index("index")
-        noalbum = pd.merge(music_file_list, noalbum, how="inner", on=["artist_l", "title_l"])
+        noalbum = pd.merge(
+            music_file_list, noalbum, how="inner", on=["artist_l", "title_l"]
+        )
         noalbum = noalbum.set_index("index")
         all_found = pd.concat([noalbum, withalbum])
         result = pd.merge(
@@ -215,7 +219,7 @@ class DataBases:
         song = pd.DataFrame()
         last_index = max(self.playlist.index)
         print()
-        print(f" -- Looking for similars list after {last_index} --")
+        print(f" -- Looking for similars after {last_index}, group {group_song}--")
         if last_index not in self.sugg_cache:
             print("      >> Generating list")
             self.sugg_cache[last_index] = (
@@ -229,22 +233,28 @@ class DataBases:
         index = last_index
         artist: str = ""
         avoid_artist: str = ""
+        if not self.playlist.empty:
+            avoid_artist = self.playlist["Artist"].values[-1]
         album: Union[str, float] = ""
         title: str = ""
+        choose_from: pd.DataFrame
         while song.empty and index >= 0:
-            choose_from = e.remove_played(self.sugg_cache[index], self.playlist)
-            if (
-                index not in self.sugg_cache or
-                choose_from.empty
-            ):
+            if index not in self.sugg_cache:
                 index -= 1
                 continue
-            if not self.playlist.empty:
-                avoid_artist = self.playlist["Artist"].values[-1]
+            choose_from = e.remove_played(self.sugg_cache[index], self.playlist)
+            if group_song >= 1 and group_song <= 9:
+                choose_from = choose_from[(choose_from["Group"] == group_song)]
+            if choose_from.empty:
+                index -= 1
+                continue
             song_index, trial = e.choose_song(choose_from, avoid_artist)
             print(f" -- From a list with length {len(self.sugg_cache[index])}: --")
-            print(self.sugg_cache[index].head())
-            print(f"  selected from list:  {song_index}")
+            print(choose_from.head()[["Place", "Artist", "Album", "Title", "Group"]])
+            print(
+                f"  selected from list:  {song_index},",
+                f"place {choose_from.at[song_index, 'Place']}"
+            )
             artist = self.sugg_cache[index].at[song_index, "Artist"]
             album = self.sugg_cache[index].at[song_index, "Album"]
             if pd.isnull(album):
@@ -263,51 +273,74 @@ class DataBases:
         while song.empty and index >= 0:
             #Trying to find songs from similar artists
             s_artists: pd.DataFrame = e.find_similar_artist(
-                self.songlist,
-                self.playlist.at[index, "Artist"]
+                self.playlist.at[index, "Artist"],
+                songs=self.songs,
+                similarities=self.similarities
             )
             s_artists = s_artists[(s_artists["Point"] > s_artists["Point"].sum()/50)]
-            artists_songs: pd.DataFrame = e.summarize_songlist(
-                e.pd.merge(s_artists, self.songlist)
+            choose_from = e.pd.merge(
+                s_artists.drop("Artist", axis=1),
+                self.songs.drop("Played last", axis=1),
+                how="left", on="artist_l"
             )
-            similarlist = e.pd.merge(artists_songs, s_artists, how="left", on="Artist")
-            similarlist["Album"] = similarlist["Album"].fillna("")
-            similarlist["Point"] = similarlist["Point"] * similarlist["Played"]
-            similarlist = similarlist.sort_values(by="Point", ascending=False)
-            similarlist = (
-                e.remove_played(similarlist, self.playlist).reset_index(drop=True)
+            choose_from["Album"] = choose_from["Album"].fillna("")
+            choose_from["Point"] = choose_from["Point"] * choose_from["Played"]
+            choose_from["Place"] = range(0, 0 + len(choose_from))
+            choose_from = choose_from.sort_values(by="Point", ascending=False)
+            choose_from = (
+                e.remove_played(choose_from, self.playlist).reset_index(drop=True)
             )
+            if group_song >= 1 and group_song <= 9:
+                choose_from = choose_from[(choose_from["Group"] == group_song)]
             print(
                 "Selecting song based on artist matches for ",
                 self.playlist.at[index, "Artist"]
             )
-            while song.empty and len(similarlist) > 0:
-                place, trial = e.choose_song(similarlist, self.playlist)
-                print(similarlist[
-                    0:max(5, list(similarlist.index).index(place)+2)
-                ][["Artist", "Album", "Title", "Point"]])
-                print(f"  selected from list:  {place}")
+            while song.empty and len(choose_from) > 0:
+                song_index, trial = e.choose_song(choose_from, avoid_artist)
+                print(choose_from.head()[[
+                    "Place", "Artist", "Album", "Title", "Group"]])
+                print(
+                    f"  selected from list:  {song_index},",
+                    f"place {choose_from.at[song_index, 'Place']}"
+                )
                 song = self.search_song(
-                    similarlist.at[place, "Artist"],
-                    similarlist.at[place, "Album"],
-                    similarlist.at[place, "Title"]
+                    choose_from.at[song_index, "Artist"],
+                    choose_from.at[song_index, "Album"],
+                    choose_from.at[song_index, "Title"]
                 )
                 if not song.empty:
                     song["Place"] = np.NaN
                     song["Last"] = np.NaN
                     song["Trial"] = trial
-                similarlist = similarlist.drop(place)
+                choose_from = choose_from.drop(song_index)
             index = index - 1
-        index = len(self.playlist) - 1
-        while song.empty and index >= 0:
-            #Just repeat the last song it can find
-            song = self.search_song(self.playlist.at[index, "Artist"],
-                                    self.playlist.at[index, "Album"],
-                                    self.playlist.at[index, "Title"])
-            song["Place"] = np.NaN
-            song["Last"] = np.NaN
-            song["Trial"] = np.NaN
-            index = index - 1
+        choose_from = (
+            self.songs.copy()
+            .sort_values("Played", ascending=False)
+        )
+        choose_from["Place"] = range(0, 0 + len(choose_from))
+        choose_from = e.remove_played(self.songs, self.playlist)
+        if group_song >= 1 and group_song <= 9:
+            choose_from = choose_from[(choose_from["Group"] == group_song)]
+        while song.empty and not choose_from.empty:
+            song_index, trial = e.choose_song(choose_from, avoid_artist)
+            print(choose_from.head()[[
+                "Place", "Artist", "Album", "Title", "Group"]])
+            print(
+                f"  selected from list:  {song_index},",
+                f"song_index {choose_from.at[song_index, 'Place']}"
+            )
+            song = self.search_song(
+                choose_from.at[song_index, "Artist"],
+                choose_from.at[song_index, "Album"],
+                choose_from.at[song_index, "Title"]
+            )
+            if not song.empty:
+                song["Place"] = np.NaN
+                song["Last"] = np.NaN
+                song["Trial"] = trial
+            choose_from = choose_from.drop(song_index)
         if song.empty:
             print("giving up")
             return song

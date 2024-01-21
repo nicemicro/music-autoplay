@@ -25,15 +25,17 @@ class Player(ttk.Frame):
         self.playlistbox.column('#1', width=100)
         self.playlistbox.column('#2', width=20)
         self.playlistbox.grid(row=0, column=0, columnspan=5, sticky="nsew")
-        #self.nowplaytext = tk.StringVar()
-        #self.nowplaylabel = ttk.Label(self, textvariable=self.nowplaytext, 
-        #                              justify=tk.CENTER)
-        #self.nowplaylabel.grid(row=0, column=0, columnspan=5)
-        #self.nextplaytext = tk.StringVar()
-        #self.nextplaytext.set("Up next: ")
-        #self.nextplaylabel = ttk.Label(self, textvariable=self.nextplaytext, 
-        #                              justify=tk.CENTER)
-        #self.nextplaylabel.grid(row=1, column=0, columnspan=5)
+        self.playlistbox.bind('<Return>', lambda x: self.new_search())
+        self.playlistbox.bind('<KP_Enter>', lambda x: self.new_search())
+        for number in range(1, 10):
+            self.playlistbox.bind(
+                str(number),
+                lambda x, number=number: self.new_search(number)
+            )
+            self.playlistbox.bind(
+                "<KP_" + str(number) + ">",
+                lambda x, number=number: self.new_search(number)
+            )
         self.song_percentage = tk.DoubleVar(self, 0)
         self.percentage_scale = ttk.Scale(
             self,
@@ -78,8 +80,8 @@ class Player(ttk.Frame):
         else:
             return int(selected)
 
-    def new_search(self):
-        self.controller.change_song(self.selection())
+    def new_search(self, group: int = -1):
+        self.controller.change_song(self.selection(), group)
 
     def step_next(self):
         self.controller.play_next(self.selection())

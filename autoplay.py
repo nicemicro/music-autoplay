@@ -74,8 +74,9 @@ class AppContainer(tk.Tk):
     def play_next(self, place: int):
         self.music_handler.play_next(place)
     
-    def change_song(self, place: int):
-        self.music_handler.change_song(place)
+    def change_song(self, place: int, group: int = -1):
+        print(f"changing song, group={group}")
+        self.music_handler.change_song(place, group)
   
     def play_file(self, position: int, filedata: tuple[str, str, str, str]) -> None:
         self.music_handler.play_file(position, filedata)
