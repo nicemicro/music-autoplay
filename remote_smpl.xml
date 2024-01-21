@@ -3,39 +3,39 @@
 	<Protocol>NEC</Protocol>
 	<Button text="1">
 		<code>16738455</code>
-		<command>find_new_1</command>
+		<command>change_1</command>
 	</Button>
 	<Button text="2">
 		<code>16750695</code>
-		<command>find_new_2</command>
+		<command>change_2</command>
 	</Button>
 	<Button text="3">
 		<code>16756815</code>
-		<command>find_new_3</command>
+		<command>change_3</command>
 	</Button>
 	<Button text="4">
 		<code>16724175</code>
-		<command>find_new_4</command>
+		<command>change_4</command>
 	</Button>
 	<Button text="5">
 		<code>16718055</code>
-		<command>find_new_5</command>
+		<command>change_5</command>
 	</Button>
 	<Button text="6">
 		<code>16743045</code>
-		<command></command>
+		<command>change_6</command>
 	</Button>
 	<Button text="7">
 		<code>16716015</code>
-		<command></command>
+		<command>change_7</command>
 	</Button>
 	<Button text="8">
 		<code>16726215</code>
-		<command></command>
+		<command>change_8</command>
 	</Button>
 	<Button text="9">
 		<code>16734885</code>
-		<command></command>
+		<command>change_9</command>
 	</Button>
 	<Button text="0">
 		<code>16730805</code>

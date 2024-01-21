@@ -177,6 +177,9 @@ class IrReceiverHandler():
                 self.controller.play_next(-1)
             if command == "change":
                 self.controller.change_song(-2)
+            if command.startswith("change_"):
+                group = int(command.split("_")[1])
+                self.controller.change_song(-2, group)
 
     def destroy(self) -> None:
         if self.controller is None:
