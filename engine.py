@@ -178,6 +178,7 @@ def get_song_id(
     artist = artist.lower().replace(",", "").replace("\"", "")
     album = album.lower().replace(",", "").replace("\"", "")
     title = title.lower().replace(",", "").replace("\"", "")
+    songs = songs.copy().sort_values("Played", ascending=False)
     song_matches: pd.DataFrame = (
         (songs["artist_l"] == artist)
     )

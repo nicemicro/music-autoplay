@@ -215,6 +215,75 @@ class DataBases:
         new_list = self.mergesongdata(new_list)
         return new_list
 
+    def sugg_from_artists(self, artist: str) -> pd.DataFrame:
+        s_artists: pd.DataFrame = e.find_similar_artist(
+            artist,
+            songs=self.songs,
+            similarities=self.similarities
+        )
+        s_artists = s_artists[(s_artists["Point"] > s_artists["Point"].sum()/50)]
+        suggestion: pd.DataFrame = e.pd.merge(
+            s_artists.drop("Artist", axis=1),
+            self.songs.drop("Played last", axis=1).reset_index(drop=False),
+            how="left", on="artist_l"
+        )
+        suggestion["Album"] = suggestion["Album"].fillna("")
+        suggestion["Point"] = suggestion["Point"] * suggestion["Played"]
+        suggestion["Place"] = range(0, 0 + len(suggestion))
+        suggestion = (
+            suggestion.sort_values(by="Point", ascending=False)
+            .set_index("song_id")
+        )
+        return suggestion
+
+    def generate_suggestion(self, index: int = -1) -> pd.DataFrame:
+        if index == -1:
+            index = max(self.playlist.index)
+        song_id = e.get_song_id(
+            self.songs,
+            self.playlist.at[index, "Artist"],
+            self.playlist.at[index, "Title"],
+            self.playlist.at[index, "Album"],
+        )[0]
+        plays = self.songs.loc[song_id, "Played"]
+        suggestion: pd.DataFrame = e.cumul_similar(
+            self.playlist[:index+1], self.songs, self.similarities,
+        )
+        if plays < 15:
+            artist_sugg = self.sugg_from_artists(self.playlist.at[index, "Artist"])
+            artist_sugg["Point"] = (
+                artist_sugg["Point"] / artist_sugg["Point"].sum() * 100
+            )
+            suggestion = pd.merge(
+                suggestion[["Point", "Played last", "Last"]],
+                artist_sugg[["Point", "Played last"]],
+                left_index=True,
+                right_index=True,
+                how="outer"
+            )
+            suggestion["Point_x"] = suggestion["Point_x"].fillna(0)
+            suggestion["Point_y"] = suggestion["Point_y"].fillna(0)
+            suggestion["Point"] = (
+                suggestion["Point_x"] * (0.5 + plays/30) +
+                suggestion["Point_y"] * (0.5 - plays/30)
+            )
+            suggestion["Played last"] = (
+                suggestion[["Played last_x", "Played last_y"]].max(axis=1)
+            )
+            suggestion = e.pd.merge(
+                suggestion.drop(
+                    ["Point_x", "Point_y", "Played last_x", "Played last_y"],
+                    axis=1
+                ),
+                self.songs.drop("Played last", axis=1),
+                left_index=True,
+                right_index=True,
+                how="left"
+            )
+            suggestion = suggestion.sort_values("Point", ascending=False)
+            suggestion["Place"] = range(1, len(suggestion)+1)
+        return suggestion
+
     def suggest_song(self, group_song: int = -1) -> pd.DataFrame:
         song = pd.DataFrame()
         last_index = max(self.playlist.index)
@@ -222,13 +291,7 @@ class DataBases:
         print(f" -- Looking for similars after {last_index}, group {group_song}--")
         if last_index not in self.sugg_cache:
             print("      >> Generating list")
-            self.sugg_cache[last_index] = (
-                e.cumul_similar(
-                    self.playlist,
-                    self.songs,
-                    self.similarities,
-                )
-            )
+            self.sugg_cache[last_index] = self.generate_suggestion()
         print(self.playlist[-5:])
         index = last_index
         artist: str = ""
@@ -270,51 +333,6 @@ class DataBases:
                 song["Trial"] = trial
             self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
         index = len(self.playlist) - 1
-        while song.empty and index >= 0:
-            #Trying to find songs from similar artists
-            s_artists: pd.DataFrame = e.find_similar_artist(
-                self.playlist.at[index, "Artist"],
-                songs=self.songs,
-                similarities=self.similarities
-            )
-            s_artists = s_artists[(s_artists["Point"] > s_artists["Point"].sum()/50)]
-            choose_from = e.pd.merge(
-                s_artists.drop("Artist", axis=1),
-                self.songs.drop("Played last", axis=1),
-                how="left", on="artist_l"
-            )
-            choose_from["Album"] = choose_from["Album"].fillna("")
-            choose_from["Point"] = choose_from["Point"] * choose_from["Played"]
-            choose_from["Place"] = range(0, 0 + len(choose_from))
-            choose_from = choose_from.sort_values(by="Point", ascending=False)
-            choose_from = (
-                e.remove_played(choose_from, self.playlist).reset_index(drop=True)
-            )
-            if group_song >= 1 and group_song <= 9:
-                choose_from = choose_from[(choose_from["Group"] == group_song)]
-            print(
-                "Selecting song based on artist matches for ",
-                self.playlist.at[index, "Artist"]
-            )
-            while song.empty and len(choose_from) > 0:
-                song_index, trial = e.choose_song(choose_from, avoid_artist)
-                print(choose_from.head()[[
-                    "Place", "Artist", "Album", "Title", "Group"]])
-                print(
-                    f"  selected from list:  {song_index},",
-                    f"place {choose_from.at[song_index, 'Place']}"
-                )
-                song = self.search_song(
-                    choose_from.at[song_index, "Artist"],
-                    choose_from.at[song_index, "Album"],
-                    choose_from.at[song_index, "Title"]
-                )
-                if not song.empty:
-                    song["Place"] = np.NaN
-                    song["Last"] = np.NaN
-                    song["Trial"] = trial
-                choose_from = choose_from.drop(song_index)
-            index = index - 1
         choose_from = (
             self.songs.copy()
             .sort_values("Played", ascending=False)
@@ -352,8 +370,6 @@ class DataBases:
         )
         newline["Time added"] = datetime.utcnow()
         self.playlist = pd.concat([self.playlist, newline])
-        print("  Selected song: ")
-        print(newline)
         return song
 
     def search_string(self, string: str, hide_played: bool) -> pd.DataFrame:
