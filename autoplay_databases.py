@@ -289,9 +289,6 @@ class DataBases:
         last_index = max(self.playlist.index)
         print()
         print(f" -- Looking for similars after {last_index}, group {group_song}--")
-        if last_index not in self.sugg_cache:
-            print("      >> Generating list")
-            self.sugg_cache[last_index] = self.generate_suggestion()
         print(self.playlist[-5:])
         index = last_index
         artist: str = ""
@@ -303,16 +300,19 @@ class DataBases:
         choose_from: pd.DataFrame
         while song.empty and index >= 0:
             if index not in self.sugg_cache:
-                index -= 1
-                continue
+                print(f"      >> Generating list for {index}")
+                self.sugg_cache[index] = self.generate_suggestion(index)
             choose_from = e.remove_played(self.sugg_cache[index], self.playlist)
+            choose_from = choose_from.iloc[
+                0:min(len(choose_from), max(25, int(len(choose_from)/3)))
+            ]
             if group_song >= 1 and group_song <= 9:
                 choose_from = choose_from[(choose_from["Group"] == group_song)]
             if choose_from.empty:
                 index -= 1
                 continue
             song_index, trial = e.choose_song(choose_from, avoid_artist)
-            print(f" -- From a list with length {len(self.sugg_cache[index])}: --")
+            print(f" -- From a list {index}, len: {len(self.sugg_cache[index])}: --")
             print(choose_from.head()[["Place", "Artist", "Album", "Title", "Group"]])
             print(
                 f"  selected from list:  {song_index},",
