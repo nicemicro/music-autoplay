@@ -284,6 +284,41 @@ class DataBases:
             suggestion["Place"] = range(1, len(suggestion)+1)
         return suggestion
 
+    def generate_random_song(self, group_song: int = -1) -> pd.DataFrame:
+        choose_from = (
+            self.songs.copy()
+            .sort_values("Played", ascending=False)
+        )
+        choose_from["Point"] = np.sqrt(choose_from["Played"])
+        choose_from["Place"] = range(1, 1 + len(choose_from))
+        choose_from = e.remove_played(choose_from, self.playlist)
+        if group_song >= 1 and group_song <= 9:
+            choose_from = choose_from[(choose_from["Group"] == group_song)]
+        song: pd.DataFrame = pd.DataFrame()
+        print(choose_from.head())
+        avoid_artist: str = ""
+        if not self.playlist.empty:
+            avoid_artist = self.playlist["Artist"].values[-1]
+        while song.empty and not choose_from.empty:
+            song_index, trial = e.choose_song(choose_from, avoid_artist)
+            print(choose_from.head()[[
+                "Place", "Artist", "Album", "Title", "Group"]])
+            print(
+                f"  selected from list:  {song_index},",
+                f"place {choose_from.at[song_index, 'Place']}"
+            )
+            song = self.search_song(
+                choose_from.at[song_index, "Artist"],
+                choose_from.at[song_index, "Album"],
+                choose_from.at[song_index, "Title"]
+            )
+            if not song.empty:
+                song["Place"] = choose_from.at[song_index, "Place"]
+                song["Last"] = np.NaN
+                song["Trial"] = trial
+            choose_from = choose_from.drop(song_index)
+        return song
+
     def suggest_song(self, group_song: int = -1) -> pd.DataFrame:
         song = pd.DataFrame()
         last_index = max(self.playlist.index)
@@ -310,6 +345,8 @@ class DataBases:
                 choose_from = choose_from[(choose_from["Group"] == group_song)]
             if choose_from.empty:
                 index -= 1
+                while index not in self.playlist.index:
+                    index -= 1
                 continue
             song_index, trial = e.choose_song(choose_from, avoid_artist)
             print(f" -- From a list {index}, len: {len(self.sugg_cache[index])}: --")
@@ -332,33 +369,8 @@ class DataBases:
                 song["Last"] = self.sugg_cache[index].at[song_index, "Last"]
                 song["Trial"] = trial
             self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
-        index = len(self.playlist) - 1
-        choose_from = (
-            self.songs.copy()
-            .sort_values("Played", ascending=False)
-        )
-        choose_from["Place"] = range(0, 0 + len(choose_from))
-        choose_from = e.remove_played(self.songs, self.playlist)
-        if group_song >= 1 and group_song <= 9:
-            choose_from = choose_from[(choose_from["Group"] == group_song)]
-        while song.empty and not choose_from.empty:
-            song_index, trial = e.choose_song(choose_from, avoid_artist)
-            print(choose_from.head()[[
-                "Place", "Artist", "Album", "Title", "Group"]])
-            print(
-                f"  selected from list:  {song_index},",
-                f"song_index {choose_from.at[song_index, 'Place']}"
-            )
-            song = self.search_song(
-                choose_from.at[song_index, "Artist"],
-                choose_from.at[song_index, "Album"],
-                choose_from.at[song_index, "Title"]
-            )
-            if not song.empty:
-                song["Place"] = np.NaN
-                song["Last"] = np.NaN
-                song["Trial"] = trial
-            choose_from = choose_from.drop(song_index)
+        if song.empty:
+            song = self.generate_random_song(group_song)
         if song.empty:
             print("giving up")
             return song
