@@ -203,10 +203,12 @@ def find_similar_id(
         raise ValueError("indexlist or similarities needed.")
     if isinstance(song_id, int):
         song_id = [song_id]
-    if len(song_id) == 0:
-        return pd.DataFrame()
-    if timeframe == 0:
-        return pd.DataFrame()
+    if len(song_id) == 0 or timeframe == 0:
+        result = pd.DataFrame(
+            [], columns=["song_id", "Played last", "Point", "Place"]
+        ).set_index("song_id")
+        result["Played last"] = result["Played last"].astype("datetime64")
+        return result
     if points is None:
         points = [10, 5, 2, 1, 1]
     if similarities is None:
@@ -655,8 +657,11 @@ def cumul_similar(
             all_similars[song] = similars
         else:
             all_similars[song] = pd.DataFrame(
-                [[0, 0, 0]],
-                columns=[f"L{song}", f"P{song}", f"O{song}"]
+                [],
+                columns=["song_id", f"L{song}", f"P{song}", f"O{song}"]
+            ).set_index("song_id")
+            all_similars[song][f"L{song}"] = (
+                all_similars[song][f"L{song}"].astype("datetime64")
             )
     for proc in processes.values():
         proc.join()
@@ -676,7 +681,8 @@ def cumul_similar(
         )
         result["Played last"] = result[["Played last", f"L{song}"]].max(axis=1)
     for i in latests.index:
-        result.loc[result[f"P{i}"].isnull(), f"P{i}"] = 0
+        #result.loc[result[f"P{i}"].isnull(), f"P{i}"] = 0
+        result[f"P{i}"] = result[f"P{i}"].fillna(0)
     result["Sum"] = 0
     for i in latests.index:
         for j in latests.index:

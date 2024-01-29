@@ -7,7 +7,7 @@ Created on Sun Oct  3 20:35:00 2021
 """
 
 from datetime import datetime
-from typing import Union
+from typing import Union, Optional
 import numpy as np
 import pandas as pd
 
@@ -239,13 +239,18 @@ class DataBases:
     def generate_suggestion(self, index: int = -1) -> pd.DataFrame:
         if index == -1:
             index = max(self.playlist.index)
-        song_id = e.get_song_id(
+        song_id_list: list[int] = e.get_song_id(
             self.songs,
             self.playlist.at[index, "Artist"],
             self.playlist.at[index, "Title"],
             self.playlist.at[index, "Album"],
-        )[0]
-        plays = self.songs.loc[song_id, "Played"]
+        )
+        song_id: Optional[int] = None
+        if len(song_id_list) == 0:
+            plays = 0
+        else:
+            song_id = song_id_list[0]
+            plays = self.songs.loc[song_id, "Played"]
         suggestion: pd.DataFrame = e.cumul_similar(
             self.playlist[:index+1], self.songs, self.similarities,
         )
