@@ -37,6 +37,11 @@ def get_points(
     similars["Point_x"] = similars["Point_x"].fillna(0)
     similars["Point_y"] = similars["Point_y"].fillna(0)
     similars["Point"] = similars["Point_x"] + similars["Point_y"]
+    similars = pd.concat(
+        [similars, pd.DataFrame(
+            [{"Point": songs.at[song_id, "Played"]*10}], index=[song_id]
+        )]
+    )
     #similars["Point"] = similars["Point"] / similars["Point"].sum()
     return similars.sort_values(by="Point", ascending=False)[["Point"]]
 
@@ -169,8 +174,8 @@ def find_max_restricted(
     a: list[str],
     b: list[str]
 ) -> tuple[str, str]:
-    matrix_one = matrix[a].loc[b]
-    matrix_two = matrix[b].loc[a]
+    matrix_one = matrix.loc[b, a]
+    matrix_two = matrix.loc[a, b]
     max_one = matrix_one.max().max()
     if pd.isna(max_one) or matrix_two.max().max() > max_one:
         matrix = matrix_two
@@ -230,10 +235,10 @@ def create_groupings(
             points, matrix, songs, similarities, int(songs.index[counter])
         )
         #print(f"{songs.at[int(songs.index[counter]), 'Artist']} - {songs.at[int(songs.index[counter]), 'Title']}")
-        counter += 1
         if counter % 50 == 0:
             print(f"{counter} / {len(songs.index)}", end=" ")
             print(f"({songs.at[int(songs.index[counter]), 'Played']})")
+        counter += 1
     while len(matrix.index) > final_groups:
         a, b = split_list(points, groups, final_groups)
         row, col = find_max_restricted(matrix, a, b)
@@ -249,15 +254,25 @@ def create_groupings(
         )
         a, b = split_list(points, groups, final_groups)
         row, col = find_max_restricted(matrix, a, b)
-        matrix = replace_matrix_lines(points, groups, matrix, row, col)
-        counter += 1
+        if matrix.loc[row, col] == 0:
+            if row in groups.keys():
+                matrix = matrix.drop([col], axis=1).drop([col], axis=0)
+                points.pop(col)
+                print(f"can't put {col} in a group... dropping")
+            else:
+                matrix = matrix.drop([row], axis=1).drop([row], axis=0)
+                points.pop(row)
+                print(f"can't put {row} in a group... dropping")
+        else:
+            matrix = replace_matrix_lines(points, groups, matrix, row, col)
         if counter % 50 == 0:
             print(f"{counter} / {len(songs.index)}", end=" ")
             print(f"({songs.at[int(songs.index[counter]), 'Played']})")
+        counter += 1
     while len(matrix.index) > final_groups:
         a, b = split_list(points, groups, final_groups)
         row, col = find_max_restricted(matrix, a, b)
-        if matrix[col].loc[row] == 0:
+        if matrix.loc[row, col] == 0:
             break
         matrix = replace_matrix_lines(points, groups, matrix, row, col)
     #print_groupings(groups, points, songs)
