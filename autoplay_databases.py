@@ -27,6 +27,8 @@ class DataBases:
         self.albums = pd.DataFrame([])
         self.playlist = pd.DataFrame([])
         self.songs = pd.DataFrame([])
+        self.indexlist = pd.DataFrame([])
+        self.similarities = pd.DataFrame([])
         self.similars_cache = e.Cache()
         self.load_file(filename)
         self.currentplayed: int
@@ -132,8 +134,8 @@ class DataBases:
             e.remove_played(self.playablelist, self.playlist)
             .reset_index(drop=True)
         )
-        self.playablelist["Album"] = self.playablelist["Album"].fillna("")
-        self.playablelist["album_l"] = self.playablelist["album_l"].fillna("")
+        #self.playablelist["Album"] = self.playablelist["Album"].fillna("")
+        #self.playablelist["album_l"] = self.playablelist["album_l"].fillna("")
         self.plstartindex = 0
         self.plendindex = 0
 
@@ -227,7 +229,7 @@ class DataBases:
             self.songs.drop("Played last", axis=1).reset_index(drop=False),
             how="left", on="artist_l"
         )
-        suggestion["Album"] = suggestion["Album"].fillna("")
+        #suggestion["Album"] = suggestion["Album"].fillna("")
         suggestion["Point"] = suggestion["Point"] * suggestion["Played"]
         suggestion["Place"] = range(0, 0 + len(suggestion))
         suggestion = (
@@ -245,12 +247,10 @@ class DataBases:
             self.playlist.at[index, "Title"],
             self.playlist.at[index, "Album"],
         )
-        song_id: Optional[int] = None
         if len(song_id_list) == 0:
             plays = 0
         else:
-            song_id = song_id_list[0]
-            plays = self.songs.loc[song_id, "Played"]
+            plays = self.songs.loc[song_id_list[0], "Played"]
         suggestion: pd.DataFrame = e.cumul_similar(
             self.playlist[:index+1], self.songs, self.similarities,
         )
@@ -289,23 +289,94 @@ class DataBases:
             suggestion["Place"] = range(1, len(suggestion)+1)
         return suggestion
 
-    def generate_random_song(self, group_song: int = -1) -> pd.DataFrame:
-        choose_from = (
-            self.songs.copy()
-            .sort_values("Played", ascending=False)
+    def generate_hourly_song(
+        self, group_song: int = -1, hour_now: int = -1
+    ) -> pd.DataFrame:
+        if hour_now < 0 or hour_now > 23:
+            hour_now = datetime.utcnow().hour
+        hours: list[int] = [
+            (hour_now - 1) % 24,
+            hour_now,
+            (hour_now + 1) % 24
+        ]
+        hourly_songs = self.indexlist.copy()
+        hourly_songs["Hour"] = hourly_songs["Time added"].dt.hour
+        hourly_songs = hourly_songs[(hourly_songs["Hour"].isin(hours))]
+        hourly_songs["Hour point"] = 20
+        hourly_songs.loc[(hourly_songs["Hour"] == hour_now), "Hour point"] = 50
+        hourly_songs["Hour point"] = (
+            hourly_songs["Hour point"] /
+            np.square(
+                (datetime.utcnow() - hourly_songs["Time added"]).dt.days // 365
+                + 1
+            )
         )
-        choose_from["Point"] = np.sqrt(choose_from["Played"])
-        choose_from["Place"] = range(1, 1 + len(choose_from))
-        choose_from = e.remove_played(choose_from, self.playlist)
+        hourly_songs = hourly_songs.groupby(["song_id"]).agg({"Hour point": "sum"})
+        hourly_songs["Hour point"] = (
+            hourly_songs["Hour point"] / hourly_songs["Hour point"].max()
+        )
+        group_points: pd.DataFrame = pd.DataFrame()
+        if group_song == -1:
+            group_points = (
+                pd.merge(
+                    hourly_songs, self.songs, how="left",
+                    left_index=True, right_index=True
+                ).groupby("Group").agg({"Hour point": "sum"})
+            )
+            group_points["Hour point"] = (
+                group_points["Hour point"] / group_points["Hour point"].max()
+            )
+            group_points = group_points[
+                (group_points["Hour point"] >= group_points["Hour point"].mean())
+            ]
+        choose_from = (
+            pd.merge(
+                self.songs, hourly_songs, how="left",
+                left_index=True, right_index=True
+            )
+        )
+        choose_from["Hour point"] = choose_from["Hour point"].fillna(0)
+        if not group_points.empty:
+            choose_from = pd.merge(
+                choose_from,
+                group_points.rename({"Hour point": "Group point"}, axis=1),
+                how="left",
+                left_on="Group",
+                right_index=True
+            )
+            choose_from["Group point"] = choose_from["Group point"].fillna(0.00001)
+        else:
+            choose_from["Group point"] = 1
+        choose_from["Point"] = (
+            np.sqrt(choose_from["Played"] / choose_from["Played"].max())
+            + choose_from["Group point"] / choose_from["Group point"].max()
+            + choose_from["Hour point"]
+        )
+        choose_from = choose_from.sort_values("Point", ascending=False)
         if group_song >= 1 and group_song <= 9:
             choose_from = choose_from[(choose_from["Group"] == group_song)]
+        choose_from["Place"] = range(1, 1 + len(choose_from))
+        return choose_from
+
+    def select_hourly_song(self, group_song: int = -1):
+        choose_from = self.generate_hourly_song(group_song=group_song)
+        choose_from = e.remove_played(choose_from, self.playlist)
+        choose_from = choose_from.iloc[
+            0:min(len(choose_from), max(25, int(len(choose_from)/3)))
+        ]
         song: pd.DataFrame = pd.DataFrame()
-        print(choose_from.head())
+        last_index: int = max(self.playlist.index)
         avoid_artist: str = ""
-        if not self.playlist.empty:
+        if (
+            not self.playlist.empty and (
+                datetime.utcnow() - self.playlist.loc[last_index, "Time added"] <
+                pd.Timedelta(minutes=30)
+            )
+        ):
             avoid_artist = self.playlist["Artist"].values[-1]
         while song.empty and not choose_from.empty:
             song_index, trial = e.choose_song(choose_from, avoid_artist)
+            print(f" -- Len: {len(choose_from)}: --")
             print(choose_from.head()[[
                 "Place", "Artist", "Album", "Title", "Group"]])
             print(
@@ -338,7 +409,12 @@ class DataBases:
         album: Union[str, float] = ""
         title: str = ""
         choose_from: pd.DataFrame
-        while song.empty and index >= 0:
+        while (
+            song.empty and index >= 0 and (
+                datetime.utcnow() - self.playlist.loc[index, "Time added"] <
+                pd.Timedelta(minutes=30)
+            )
+        ):
             if index not in self.sugg_cache:
                 print(f"      >> Generating list for {index}")
                 self.sugg_cache[index] = self.generate_suggestion(index)
@@ -375,7 +451,7 @@ class DataBases:
                 song["Trial"] = trial
             self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
         if song.empty:
-            song = self.generate_random_song(group_song)
+            song = self.select_hourly_song(group_song)
         if song.empty:
             print("giving up")
             return song
@@ -569,7 +645,10 @@ class DataBases:
         self.songlist, saved_songs, self.playlist = e.load_data(fname)
         self.songs = e.summarize_songlist(self.songlist)
         self.songs = e.revise_summarized_list(saved_songs, self.songs)
-        self.similarities = e.summarize_similars(self.songs, songlist=self.songlist)
+        self.indexlist = e.make_indexlist(self.songlist, self.songs)
+        self.similarities = e.summarize_similars(
+            self.songs, indexlist=self.indexlist
+        )
 
     def save_file(self, fname=""):
         if fname == "":

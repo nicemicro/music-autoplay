@@ -650,7 +650,7 @@ def cumul_similar(
             if pd.isnull(album):
                 album = ""
             similars[f"P{song}"] = (
-                similars["Point"] / similars["Point"].sum() * 100
+                similars["Point"] / np.sqrt(similars["Point"].sum()) * 100
             )
             similars[f"O{song}"] = similars["Place"]
             similars[f"L{song}"] = similars["Played last"]
@@ -1195,6 +1195,7 @@ def load_data(
         parse_dates=["Played last",	"Added first"],
         dtype={"Group": "Int8"},
     )
+    songs["Album"] = songs["Album"].fillna("")
     songs["artist_l"] = songs["Artist"].str.lower()
     songs["title_l"] = songs["Title"].str.lower()
     songs["album_l"] = songs["Album"].fillna("").str.lower()
