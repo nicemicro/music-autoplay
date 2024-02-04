@@ -290,18 +290,33 @@ class DataBases:
         return suggestion
 
     def generate_hourly_song(
-        self, group_song: int = -1, hour_now: int = -1
+        self, group_song: int = -1, day_of_week: int = -1, hour_now: int = -1
     ) -> pd.DataFrame:
         if hour_now < 0 or hour_now > 23:
             hour_now = datetime.utcnow().hour
+        if day_of_week < 0 or day_of_week > 6:
+            day_of_week = datetime.utcnow().weekday()
         hours: list[int] = [
             (hour_now - 1) % 24,
             hour_now,
             (hour_now + 1) % 24
         ]
+        days: list[int] = [
+            (day_of_week + (hour_now - 1) // 24) % 7,
+            day_of_week,
+            (day_of_week + (hour_now + 1) // 24) % 7,
+        ]
         hourly_songs = self.indexlist.copy()
         hourly_songs["Hour"] = hourly_songs["Time added"].dt.hour
-        hourly_songs = hourly_songs[(hourly_songs["Hour"].isin(hours))]
+        hourly_songs["Weekday"] = hourly_songs["Time added"].dt.dayofweek
+        hourly_songs = pd.concat(
+            [
+                hourly_songs[
+                    (hourly_songs["Hour"]==h) &
+                    (hourly_songs["Weekday"]==d
+                )] for (h, d) in zip(hours, days)
+            ]
+        )
         hourly_songs["Hour point"] = 20
         hourly_songs.loc[(hourly_songs["Hour"] == hour_now), "Hour point"] = 50
         hourly_songs["Hour point"] = (
@@ -335,6 +350,8 @@ class DataBases:
                 left_index=True, right_index=True
             )
         )
+        if group_song >= 1 and group_song <= 9:
+            choose_from = choose_from[(choose_from["Group"] == group_song)]
         choose_from["Hour point"] = choose_from["Hour point"].fillna(0)
         if not group_points.empty:
             choose_from = pd.merge(
@@ -351,10 +368,10 @@ class DataBases:
             np.sqrt(choose_from["Played"] / choose_from["Played"].max())
             + choose_from["Group point"] / choose_from["Group point"].max()
             + choose_from["Hour point"]
+            - 1
         )
         choose_from = choose_from.sort_values("Point", ascending=False)
-        if group_song >= 1 and group_song <= 9:
-            choose_from = choose_from[(choose_from["Group"] == group_song)]
+        choose_from = choose_from[(choose_from["Point"]) >= 0]
         choose_from["Place"] = range(1, 1 + len(choose_from))
         return choose_from
 
