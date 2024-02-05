@@ -539,6 +539,12 @@ class DataBases:
                                 columns=["Artist", "Album", "Title",
                                          "Time added"])
         self.songlist = pd.concat([new_line, self.songlist]).reset_index(drop=True)
+        index: int = self.currentplayed
+        while index <= max(self.playlist.index):
+            if index not in self.playlist.index:
+                continue
+            self.playlist.at[index, "Time added"] = datetime.utcnow()
+            index += 1
         self.save_file()
     
     def playlist_append(self, artist, album, title):
