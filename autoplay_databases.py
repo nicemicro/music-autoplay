@@ -134,8 +134,6 @@ class DataBases:
             e.remove_played(self.playablelist, self.playlist)
             .reset_index(drop=True)
         )
-        #self.playablelist["Album"] = self.playablelist["Album"].fillna("")
-        #self.playablelist["album_l"] = self.playablelist["album_l"].fillna("")
         self.plstartindex = 0
         self.plendindex = 0
 
@@ -375,14 +373,30 @@ class DataBases:
         choose_from["Place"] = range(1, 1 + len(choose_from))
         return choose_from
 
-    def select_hourly_song(self, group_song: int = -1):
-        choose_from = self.generate_hourly_song(group_song=group_song)
-        choose_from = e.remove_played(choose_from, self.playlist)
-        choose_from = choose_from.iloc[
-            0:min(len(choose_from), max(25, int(len(choose_from)/3)))
-        ]
-        song: pd.DataFrame = pd.DataFrame()
-        last_index: int = max(self.playlist.index)
+    def get_rarely_played(self, group: int = -1) -> pd.DataFrame:
+        songs = e.remove_played(self.songs, self.playlist)
+        if group != -1:
+            songs = songs[(songs["Group"] == group)]
+        songs = songs[(songs["Played"]>2) & (songs["Played"]<=15)]
+        choose_from = pd.concat(
+            [
+                songs.sort_values("Added first", ascending=False).head(20),
+                songs.sort_values("Played", ascending=True).head(20),
+                songs.sort_values("Played last", ascending=True).head(20),
+            ]
+        ).drop_duplicates()
+        choose_from["Point"] = 1000
+        choose_from["Place"] = -1
+        return choose_from
+
+    def suggest_song(self, group_song: int = -1) -> pd.DataFrame:
+        song = pd.DataFrame()
+        last_index = max(self.playlist.index)
+        print()
+        print(f" -- Looking for similars after {last_index}, group {group_song}--")
+        print(self.playlist[-5:])
+        index = last_index + 1
+        artist: str = ""
         avoid_artist: str = ""
         if (
             not self.playlist.empty and (
@@ -391,84 +405,100 @@ class DataBases:
             )
         ):
             avoid_artist = self.playlist["Artist"].values[-1]
-        while song.empty and not choose_from.empty:
-            song_index, trial = e.choose_song(choose_from, avoid_artist)
-            print(f" -- Len: {len(choose_from)}: --")
-            print(choose_from.head()[[
-                "Place", "Artist", "Album", "Title", "Group"]])
-            print(
-                f"  selected from list:  {song_index},",
-                f"place {choose_from.at[song_index, 'Place']}"
-            )
-            song = self.search_song(
-                choose_from.at[song_index, "Artist"],
-                choose_from.at[song_index, "Album"],
-                choose_from.at[song_index, "Title"]
-            )
-            if not song.empty:
-                song["Place"] = choose_from.at[song_index, "Place"]
-                song["Last"] = np.NaN
-                song["Trial"] = trial
-            choose_from = choose_from.drop(song_index)
-        return song
-
-    def suggest_song(self, group_song: int = -1) -> pd.DataFrame:
-        song = pd.DataFrame()
-        last_index = max(self.playlist.index)
-        print()
-        print(f" -- Looking for similars after {last_index}, group {group_song}--")
-        print(self.playlist[-5:])
-        index = last_index
-        artist: str = ""
-        avoid_artist: str = ""
-        if not self.playlist.empty:
-            avoid_artist = self.playlist["Artist"].values[-1]
         album: Union[str, float] = ""
         title: str = ""
-        choose_from: pd.DataFrame
-        while (
-            song.empty and index >= 0 and (
-                datetime.utcnow() - self.playlist.loc[index, "Time added"] <
-                pd.Timedelta(minutes=30)
-            )
-        ):
-            if index not in self.sugg_cache:
-                print(f"      >> Generating list for {index}")
-                self.sugg_cache[index] = self.generate_suggestion(index)
-            choose_from = e.remove_played(self.sugg_cache[index], self.playlist)
-            choose_from = choose_from.iloc[
-                0:min(len(choose_from), max(25, int(len(choose_from)/3)))
-            ]
-            if group_song >= 1 and group_song <= 9:
-                choose_from = choose_from[(choose_from["Group"] == group_song)]
+        choose_from: pd.DataFrame = pd.DataFrame()
+        while song.empty:
             if choose_from.empty:
                 index -= 1
-                while index not in self.playlist.index:
+                while index not in self.playlist.index and index >= 0:
                     index -= 1
-                continue
+                if index <= -3:
+                    break
+                elif index == -2:
+                    choose_from = self.songs.sort_values("Played", ascending=False)
+                    choose_from["Point"] = choose_from["Played"]
+                    choose_from["Place"] = range(1, 1 + len(choose_from))
+                    choose_from["Last"] = np.NaN
+                    choose_from = e.remove_played(choose_from, self.playlist)
+                elif (index == -1 or (
+                        index in self.playlist.index and
+                        datetime.utcnow() -
+                        self.playlist.loc[index, "Time added"] >
+                        pd.Timedelta(minutes=30)
+                    )
+                ):
+                    #If there is no songs in the near past to compare to
+                    index = - 1
+                    choose_from = self.generate_hourly_song(group_song=group_song)
+                    choose_from = e.remove_played(choose_from, self.playlist)
+                    choose_from["Last"] = np.NaN
+                else:
+                    if index not in self.sugg_cache:
+                        print(f"      >> Generating list for {index}")
+                        self.sugg_cache[index] = self.generate_suggestion(index)
+                    choose_from = e.remove_played(
+                        self.sugg_cache[index], self.playlist
+                    )
+                    recentgroups = e.list_group_count(self.playlist[-5:], self.songs)
+                    if (
+                        group_song == -1 and
+                        len(recentgroups) == 1 and
+                        recentgroups["Time added"].sum() == 5 and
+                        datetime.utcnow().microsecond % 100 < 5
+                    ):
+                        print(f"Generating a song that was rarely played")
+                        choose_from = pd.concat(
+                            [
+                                self.get_rarely_played(
+                                    recentgroups.index[0]
+                                ),
+                                choose_from
+                            ]
+                        )
+                choose_from = (
+                    choose_from[~(choose_from.index.duplicated(keep="first"))]
+                )
+                choose_from = choose_from.iloc[
+                    0:min(len(choose_from), max(25, int(len(choose_from)/3)))
+                ]
+                choose_from["Percent"] = (
+                    choose_from["Point"] / choose_from["Point"].sum() * 100
+                )
+                if group_song >= 1 and group_song <= 9:
+                    choose_from = choose_from[(choose_from["Group"] == group_song)]
+                    choose_from = choose_from[(
+                        choose_from["artist_l"] != avoid_artist.lower()
+                    )]
             song_index, trial = e.choose_song(choose_from, avoid_artist)
-            print(f" -- From a list {index}, len: {len(self.sugg_cache[index])}: --")
-            print(choose_from.head()[["Place", "Artist", "Album", "Title", "Group"]])
+            if song_index == -1:
+                print("Nothing has been found... trying again")
+                continue
+            print(f" -- From a list {index}, len: {len(choose_from)}: --")
+            print(choose_from.head()[[
+                "Place", "Percent", "Artist", "Album", "Title", "Group"
+            ]])
             print(
                 f"  selected from list:  {song_index},",
                 f"place {choose_from.at[song_index, 'Place']}"
             )
-            artist = self.sugg_cache[index].at[song_index, "Artist"]
-            album = self.sugg_cache[index].at[song_index, "Album"]
-            if pd.isnull(album):
-                album = ""
+            artist = choose_from.at[song_index, "Artist"]
+            album = choose_from.at[song_index, "Album"]
             assert isinstance(album, str)
-            title = self.sugg_cache[index].at[song_index, "Title"]
+            title = choose_from.at[song_index, "Title"]
             song = self.search_song(
                 artist, album, title
             )
             if not song.empty:
-                song["Place"] = self.sugg_cache[index].at[song_index, "Place"]
-                song["Last"] = self.sugg_cache[index].at[song_index, "Last"]
+                song["Place"] = choose_from.at[song_index, "Place"]
+                song["Last"] = choose_from.at[song_index, "Last"]
                 song["Trial"] = trial
-            self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
-        if song.empty:
-            song = self.select_hourly_song(group_song)
+            choose_from = choose_from.drop(song_index)
+            if (
+                index in self.sugg_cache.keys() and
+                song_index in self.sugg_cache[index].index
+            ):
+                self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
         if song.empty:
             print("giving up")
             return song

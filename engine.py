@@ -573,7 +573,20 @@ def generate_list(
     ]]
 
 
-#%%
+def list_group_count(playlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
+    indexlist = make_indexlist(playlist, songs)
+    grouplist = pd.merge(
+        indexlist, songs["Group"], how="left",
+        left_on="song_id", right_index=True
+    )
+    groups = (
+        grouplist.groupby("Group")
+        .aggregate({"Time added": "count"})
+        .sort_values("Time added", ascending=False)
+    )
+    return groups
+
+
 def latest_songs(
     playlist: pd.DataFrame,
     timeframe: int = 30 * 60,
@@ -988,6 +1001,7 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
         [overwrite[(overwrite["Over"].isna())], no_album]
     ).sort_values(["Artist", "Album", "Title"]).reset_index(drop=True)
     result.index.name = "song_id"
+    result["Album"] = result["Album"].fillna("")
     return result[[
         "Artist", "Album", "Title", "Played", "Played last",
         "Added first", "artist_l", "album_l", "title_l"
@@ -1015,6 +1029,8 @@ def filter_and_order(
         "new add": the songs added most recently to the library (based on
             first time played) will appear top.
     min_play: the number how many times a song has to have been played to
+        appear
+    max_play: the max number how many times a song has to have been played to
         appear
     per_album: whether a song that is on multiple albums should appear as
         separate entries per album (True) or not (False)
