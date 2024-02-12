@@ -287,92 +287,6 @@ class DataBases:
             suggestion["Place"] = range(1, len(suggestion)+1)
         return suggestion
 
-    def generate_hourly_song(
-        self, group_song: int = -1, day_of_week: int = -1, hour_now: int = -1
-    ) -> pd.DataFrame:
-        if hour_now < 0 or hour_now > 23:
-            hour_now = datetime.utcnow().hour
-        if day_of_week < 0 or day_of_week > 6:
-            day_of_week = datetime.utcnow().weekday()
-        hours: list[int] = [
-            (hour_now - 1) % 24,
-            hour_now,
-            (hour_now + 1) % 24
-        ]
-        days: list[int] = [
-            (day_of_week + (hour_now - 1) // 24) % 7,
-            day_of_week,
-            (day_of_week + (hour_now + 1) // 24) % 7,
-        ]
-        hourly_songs = self.indexlist.copy()
-        hourly_songs["Hour"] = hourly_songs["Time added"].dt.hour
-        hourly_songs["Weekday"] = hourly_songs["Time added"].dt.dayofweek
-        hourly_songs = pd.concat(
-            [
-                hourly_songs[
-                    (hourly_songs["Hour"]==h) &
-                    (hourly_songs["Weekday"]==d
-                )] for (h, d) in zip(hours, days)
-            ]
-        )
-        hourly_songs["Hour point"] = 20
-        hourly_songs.loc[(hourly_songs["Hour"] == hour_now), "Hour point"] = 50
-        hourly_songs["Hour point"] = (
-            hourly_songs["Hour point"] /
-            np.square(
-                (datetime.utcnow() - hourly_songs["Time added"]).dt.days // 365
-                + 1
-            )
-        )
-        hourly_songs = hourly_songs.groupby(["song_id"]).agg({"Hour point": "sum"})
-        hourly_songs["Hour point"] = (
-            hourly_songs["Hour point"] / hourly_songs["Hour point"].max()
-        )
-        group_points: pd.DataFrame = pd.DataFrame()
-        if group_song == -1:
-            group_points = (
-                pd.merge(
-                    hourly_songs, self.songs, how="left",
-                    left_index=True, right_index=True
-                ).groupby("Group").agg({"Hour point": "sum"})
-            )
-            group_points["Hour point"] = (
-                group_points["Hour point"] / group_points["Hour point"].max()
-            )
-            group_points = group_points[
-                (group_points["Hour point"] >= group_points["Hour point"].mean())
-            ]
-        choose_from = (
-            pd.merge(
-                self.songs, hourly_songs, how="left",
-                left_index=True, right_index=True
-            )
-        )
-        if group_song >= 1 and group_song <= 9:
-            choose_from = choose_from[(choose_from["Group"] == group_song)]
-        choose_from["Hour point"] = choose_from["Hour point"].fillna(0)
-        if not group_points.empty:
-            choose_from = pd.merge(
-                choose_from,
-                group_points.rename({"Hour point": "Group point"}, axis=1),
-                how="left",
-                left_on="Group",
-                right_index=True
-            )
-            choose_from["Group point"] = choose_from["Group point"].fillna(0.00001)
-        else:
-            choose_from["Group point"] = 1
-        choose_from["Point"] = (
-            np.sqrt(choose_from["Played"] / choose_from["Played"].max())
-            + choose_from["Group point"] / choose_from["Group point"].max()
-            + choose_from["Hour point"]
-            - 1
-        )
-        choose_from = choose_from.sort_values("Point", ascending=False)
-        choose_from = choose_from[(choose_from["Point"]) >= 0]
-        choose_from["Place"] = range(1, 1 + len(choose_from))
-        return choose_from
-
     def get_rarely_played(self, group: int = -1) -> pd.DataFrame:
         songs = e.remove_played(self.songs, self.playlist)
         if group != -1:
@@ -430,7 +344,11 @@ class DataBases:
                 ):
                     #If there is no songs in the near past to compare to
                     index = - 1
-                    choose_from = self.generate_hourly_song(group_song=group_song)
+                    choose_from = e.generate_hourly_song(
+                        self.indexlist,
+                        self.songs,
+                        group_song=group_song
+                    )
                     choose_from = e.remove_played(choose_from, self.playlist)
                     choose_from["Last"] = np.NaN
                 else:

@@ -721,17 +721,111 @@ def cumul_similar(
     )
     return result_merge
 
+def generate_hourly_song(
+    indexlist: pd.DataFrame,
+    songs: pd.DataFrame,
+    group_song: int = -1,
+    day_of_week: int = -1,
+    hour: int = -1
+) -> pd.DataFrame:
+    if hour < 0 or hour > 23:
+        hour = datetime.datetime.utcnow().hour
+    if day_of_week < 0 or day_of_week > 6:
+        day_of_week = datetime.datetime.utcnow().weekday()
+    hours: list[int] = [
+        (hour - 1) % 24,
+        hour,
+        (hour + 1) % 24
+    ]
+    days: list[int] = [
+        (day_of_week + (hour - 1) // 24) % 7,
+        day_of_week,
+        (day_of_week + (hour + 1) // 24) % 7,
+    ]
+    hourly_songs = indexlist.copy()
+    hourly_songs["Hour"] = hourly_songs["Time added"].dt.hour
+    hourly_songs["Weekday"] = hourly_songs["Time added"].dt.dayofweek
+    for (h, d) in zip(hours, days):
+        if hour == h:
+            hour_point = 50
+        else:
+            hour_point = 20
+        hourly_songs.loc[
+            (hourly_songs["Hour"]==h) &
+            (hourly_songs["Weekday"]!=d),
+            "Hour point"
+        ] = hour_point/200
+        hourly_songs.loc[
+            (hourly_songs["Hour"]==h) &
+            (hourly_songs["Weekday"]==d),
+            "Hour point"
+        ] = hour_point
+    hourly_songs["Hour point"] = (
+        hourly_songs["Hour point"] /
+        np.square(
+            (datetime.datetime.utcnow() - hourly_songs["Time added"])
+            .dt.days // 365 + 1
+        )
+    )
+    hourly_songs = hourly_songs.groupby(["song_id"]).agg({"Hour point": "sum"})
+    hourly_songs["Hour point"] = (
+        hourly_songs["Hour point"] / hourly_songs["Hour point"].max()
+    )
+    group_points: pd.DataFrame = pd.DataFrame()
+    if group_song == -1:
+        group_points = (
+            pd.merge(
+                hourly_songs, songs, how="left",
+                left_index=True, right_index=True
+            ).groupby("Group").agg({"Hour point": "sum"})
+        )
+        group_points["Hour point"] = (
+            group_points["Hour point"] / group_points["Hour point"].max()
+        )
+        group_points = group_points[
+            (group_points["Hour point"] >= group_points["Hour point"].mean())
+        ]
+    choose_from = (
+        pd.merge(
+            songs, hourly_songs, how="left",
+            left_index=True, right_index=True
+        )
+    )
+    if group_song >= 1 and group_song <= 9:
+        choose_from = choose_from[(choose_from["Group"] == group_song)]
+    choose_from["Hour point"] = choose_from["Hour point"].fillna(0)
+    if not group_points.empty:
+        choose_from = pd.merge(
+            choose_from,
+            group_points.rename({"Hour point": "Group point"}, axis=1),
+            how="left",
+            left_on="Group",
+            right_index=True
+        )
+        choose_from["Group point"] = choose_from["Group point"].fillna(0.00001)
+    else:
+        choose_from["Group point"] = 1
+    choose_from["Point"] = (
+        np.sqrt(choose_from["Played"] / choose_from["Played"].max())
+        + choose_from["Group point"] / choose_from["Group point"].max()
+        + choose_from["Hour point"]
+        - 1
+    )
+    choose_from = choose_from.sort_values("Point", ascending=False)
+    choose_from = choose_from[(choose_from["Point"]) >= 0]
+    choose_from["Place"] = range(1, 1 + len(choose_from))
+    return choose_from
 
-#%%
+
 def playlist_from_songs(
-    songlist: pd.DataFrame, playlist: pd.DataFrame, datetime: pd.Timestamp
+    songlist: pd.DataFrame, playlist: pd.DataFrame, date: pd.Timestamp
 ) -> pd.DataFrame:
     """
     Gets the songs from the songlist that have been playd after the last
     entry in playlist, and adds it to the end of playlist.
     """
     merge = (
-        songlist[(songlist["Time added"] > pd.Timestamp(datetime))]
+        songlist[(songlist["Time added"] > pd.Timestamp(date))]
         .sort_values(by=["Time added"], ascending=[True])
     )
     return pd.concat([playlist, merge], sort=False).reset_index(drop=True)
