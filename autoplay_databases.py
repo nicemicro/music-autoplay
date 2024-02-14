@@ -27,9 +27,10 @@ class DataBases:
         self.albums = pd.DataFrame([])
         self.playlist = pd.DataFrame([])
         self.songs = pd.DataFrame([])
+        self.all_songs = pd.DataFrame([])
         self.indexlist = pd.DataFrame([])
         self.similarities = pd.DataFrame([])
-        self.similars_cache = e.Cache()
+        self.missing_songs: list[int] = []
         self.load_file(filename)
         self.currentplayed: int
         if self.playlist.empty:
@@ -62,6 +63,7 @@ class DataBases:
         album = album.replace("\"", "")
         title = title.replace("\"", "")
         s_strings = []
+        ids: list[int]
 
         for word in [w for w in title.split(" ") if len(w) > 2]:
             s_strings.append("title")
@@ -86,6 +88,9 @@ class DataBases:
         if len(result) == 0:
             result = self.music.search(*s_strings2)
         if len(result) == 0:
+            ids = e.get_song_id(self.songs, artist=artist, title=title)
+            self.missing_songs += ids
+            self.songs = self.songs[~(self.songs.index.isin(self.missing_songs))]
             return pd.DataFrame(result)
         if len(result) == 1:
             #print(f"Search: {artist}-{album}-{title}, found {len(result)}")
@@ -123,6 +128,10 @@ class DataBases:
             (result["artist"].str.replace(",", "").str.replace("\"", "").str.lower()
             == artist.lower())
         ]
+        if result.empty:
+            ids = e.get_song_id(self.songs, artist=artist, title=title)
+            self.missing_songs += ids
+            self.songs = self.songs[~(self.songs.index.isin(self.missing_songs))]
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
@@ -157,8 +166,8 @@ class DataBases:
                 .str.replace("\"", "")
             )
         #music_file_list.to_csv("music_file_list.csv")
-        withalbum = self.songs[(self.songs["album_l"]) != ""]
-        noalbum = self.songs[(self.songs["album_l"]) == ""]
+        withalbum = self.all_songs[(self.all_songs["album_l"]) != ""]
+        noalbum = self.all_songs[(self.all_songs["album_l"]) == ""]
         withalbum = pd.merge(
             music_file_list, withalbum, how="inner",
             on=["artist_l", "album_l" ,"title_l"]
@@ -191,27 +200,35 @@ class DataBases:
                     songs.at[index, "Title"])
             if len(song.index) > 0:
                 new_list = pd.concat([new_list, song[0:1]])
-            index += 1
+                index += 1
+            else:
+                songs = songs.drop(index).reset_index(drop=True)
         if len(new_list.index) > 0:
+            self.playablelist = songs
             self.plstartindex = self.plendindex
             self.plendindex = index
         new_list = self.mergesongdata(new_list)
         return new_list
 
     def list_songs_bck(self, num):
-        index = self.plstartindex
+        index = self.plstartindex - 1
         songs = self.playablelist
         new_list = pd.DataFrame([])
-        while len(new_list.index) < num and index > 0:
-            index -= 1
+        while len(new_list.index) < num and index >= 0:
             song = self.search_song(songs.at[index, "Artist"],
                     songs.at[index, "Album"],
                     songs.at[index, "Title"])
             if len(song.index) > 0:
                 new_list = pd.concat([song[0:1], new_list])
+            else:
+                songs = songs.drop(index).reset_index(drop=True)
+            index -= 1
         if len(new_list.index) > 0:
             self.plendindex = self.plstartindex
             self.plstartindex = index
+            self.playablelist = songs
+        else:
+            return self.list_songs_fwd(num)
         new_list = self.mergesongdata(new_list)
         return new_list
 
@@ -291,7 +308,7 @@ class DataBases:
         songs = e.remove_played(self.songs, self.playlist)
         if group != -1:
             songs = songs[(songs["Group"] == group)]
-        songs = songs[(songs["Played"]>2) & (songs["Played"]<=15)]
+        songs = songs[(songs["Played"]>0) & (songs["Played"]<=15)]
         choose_from = pd.concat(
             [
                 songs.sort_values("Added first", ascending=False).head(20),
@@ -322,6 +339,7 @@ class DataBases:
         album: Union[str, float] = ""
         title: str = ""
         choose_from: pd.DataFrame = pd.DataFrame()
+        recentgroups = e.list_group_count(self.playlist[-5:], self.songs)
         while song.empty:
             if choose_from.empty:
                 index -= 1
@@ -358,7 +376,6 @@ class DataBases:
                     choose_from = e.remove_played(
                         self.sugg_cache[index], self.playlist
                     )
-                    recentgroups = e.list_group_count(self.playlist[-5:], self.songs)
                     if (
                         group_song == -1 and
                         len(recentgroups) == 1 and
@@ -614,19 +631,31 @@ class DataBases:
         if fname == "":
             fname = "data"
         self.songlist, saved_songs, self.playlist = e.load_data(fname)
-        self.songs = e.summarize_songlist(self.songlist)
-        self.songs = e.revise_summarized_list(saved_songs, self.songs)
-        self.indexlist = e.make_indexlist(self.songlist, self.songs)
+        self.all_songs = e.summarize_songlist(self.songlist)
+        self.all_songs = e.revise_summarized_list(saved_songs, self.all_songs)
+        self.indexlist = e.make_indexlist(self.songlist, self.all_songs)
         self.similarities = e.summarize_similars(
-            self.songs, indexlist=self.indexlist
+            self.all_songs, indexlist=self.indexlist
         )
+        try:
+            self.missing_songs = pd.read_csv("missing.csv", header=None)[0].to_list()
+        except OSError as error:
+            print(error, "starting with empty list")
+            self.missing_songs = []
+        self.missing_songs = self.missing_songs[int(len(self.missing_songs)/5):]
+        self.songs = self.all_songs[
+            ~(self.all_songs.index.isin(self.missing_songs))
+        ]
 
     def save_file(self, fname=""):
         if fname == "":
             fname= "data"
         #print("Start file save")
         e.save_data(
-            self.songlist, self.songs, self.playlist, fname
+            self.songlist, self.all_songs, self.playlist, fname
+        )
+        pd.DataFrame(self.missing_songs).to_csv(
+            "missing.csv", index=False, header=False
         )
         #print("Save complete")
 
