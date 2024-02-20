@@ -30,11 +30,11 @@ class Player(ttk.Frame):
         for number in range(1, 10):
             self.playlistbox.bind(
                 str(number),
-                lambda x, number=number: self.new_search(number)
+                lambda x, number=number: self.new_search(number * 100)
             )
             self.playlistbox.bind(
                 "<KP_" + str(number) + ">",
-                lambda x, number=number: self.new_search(number)
+                lambda x, number=number: self.new_search(number * 100)
             )
         self.song_percentage = tk.DoubleVar(self, 0)
         self.percentage_scale = ttk.Scale(

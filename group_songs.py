@@ -9,6 +9,7 @@ Created on Sud Dec 24 22:11:00 2023
 from typing import Optional, Union
 
 import pandas as pd
+from math import sqrt, log
 
 import engine as e
 
@@ -240,7 +241,7 @@ def create_groupings(
             print(f"({songs.at[int(songs.index[counter]), 'Played']})")
         counter += 1
     while len(matrix.index) > final_groups:
-        a, b = split_list(points, groups, final_groups)
+        a, b = split_list(points, groups, len(matrix.index)-1)
         row, col = find_max_restricted(matrix, a, b)
         matrix = replace_matrix_lines(points, groups, matrix, row, col)
     while len(matrix.index) < final_groups * 3 and counter < len(songs.index):
@@ -273,7 +274,15 @@ def create_groupings(
         a, b = split_list(points, groups, final_groups)
         row, col = find_max_restricted(matrix, a, b)
         if matrix.loc[row, col] == 0:
-            break
+            if row in groups.keys():
+                matrix = matrix.drop([col], axis=1).drop([col], axis=0)
+                points.pop(col)
+                print(f"can't put {col} in a group... dropping")
+            else:
+                matrix = matrix.drop([row], axis=1).drop([row], axis=0)
+                points.pop(row)
+                print(f"can't put {row} in a group... dropping")
+            continue
         matrix = replace_matrix_lines(points, groups, matrix, row, col)
     #print_groupings(groups, points, songs)
     return matrix
@@ -283,7 +292,8 @@ def set_new_groups(
     groups: dict[str, list[str]],
 ) -> pd.DataFrame:
     result = songs.copy()
-    result["New_group"] = None
+    result["Old_group"] = result["Group"] // 100
+    result["New_group"] = 0
     group_index: list[int] = []
     groups_by_size = pd.DataFrame(
         [[len(x)] for x in groups.values()],
@@ -293,7 +303,7 @@ def set_new_groups(
     for group_name in groups_by_size.index:
         songselection = groups[group_name]
         songselect_int = list(int(x) for x in songselection)
-        for index in result.loc[songselect_int, "Group"].value_counts().index:
+        for index in result.loc[songselect_int, "Old_group"].value_counts().index:
             if index not in group_index:
                 group_index.append(index)
                 result.loc[songselect_int, "New_group"] = index
@@ -304,6 +314,8 @@ def set_new_groups(
                     group_index.append(index)
                     result.loc[songselect_int, "New_group"] = index
                     break
+    result["New_group"] = result["New_group"] * 100 + result["Small_group"]
+    result["New_group"] = result["New_group"].fillna(0).astype("Int16")
     return result
 
 if __name__ == "__main__":
@@ -315,16 +327,32 @@ if __name__ == "__main__":
     )
     indexlist = e.make_indexlist(songlist, songs)
     similarities = e.summarize_similars(songs, indexlist=indexlist)
-    groups: dict[str, list[str]] = {}
     initial_search: int = 30
+    min_play: int = round(sqrt(songs["Played"].max()))
+    small_group_num: int = min(max(round(log(len(songs))*2), 9), 99)
+    print(min_play, small_group_num)
+    groups: dict[str, list[str]] = {}
     points: dict[str, pd.DataFrame] = initial_similars(
         songs, similarities, initial_search
     )
     matrix: pd.DataFrame = matrix_songs(points)
     matrix = create_groupings(
-        songs, matrix, similarities, points, groups, initial_search, 15, 9
+        songs, matrix, similarities, points, groups,
+        initial_search, min_play, small_group_num
     )
-    new_songs = set_new_groups(songs, groups)
+    groupind: int = 1
+    new_songs: pd.DataFrame = songs.copy()
+    for group_name in groups.keys():
+        songselection = groups[group_name]
+        songselect_int = list(int(x) for x in songselection)
+        new_songs.loc[songselect_int, "Small_group"] = groupind
+        groupind += 1
+    while len(matrix.index) > 9:
+        #a, b = split_list(points, groups, len(matrix.index)-1)
+        #row, col = find_max_restricted(matrix, a, b)
+        row, col = find_max_matrix(matrix)
+        matrix = replace_matrix_lines(points, groups, matrix, row, col)
+    new_songs = set_new_groups(new_songs, groups)
     new_songs["Group"] = new_songs["New_group"]
-    new_songs = new_songs.drop("New_group", axis=1)
+    new_songs = new_songs.drop(["New_group", "Small_group", "Old_group"], axis=1)
 

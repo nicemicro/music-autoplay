@@ -306,8 +306,10 @@ class DataBases:
 
     def get_rarely_played(self, group: int = -1) -> pd.DataFrame:
         songs = e.remove_played(self.songs, self.playlist)
-        if group != -1:
+        if group != -1 and group % 100 != 0:
             songs = songs[(songs["Group"] == group)]
+        elif group != -1:
+            songs = songs[(songs["Group"] // 100 == group // 100)]
         songs = songs[(songs["Played"]>0) & (songs["Played"]<=15)]
         choose_from = pd.concat(
             [
@@ -320,11 +322,11 @@ class DataBases:
         choose_from["Place"] = -1
         return choose_from
 
-    def suggest_song(self, group_song: int = -1) -> pd.DataFrame:
+    def suggest_song(self, group: int = -1) -> pd.DataFrame:
         song = pd.DataFrame()
         last_index = max(self.playlist.index)
         print()
-        print(f" -- Looking for similars after {last_index}, group {group_song}--")
+        print(f" -- Looking for similars after {last_index}, group {group}--")
         print(self.playlist[-5:])
         index = last_index + 1
         artist: str = ""
@@ -365,7 +367,7 @@ class DataBases:
                     choose_from = e.generate_hourly_song(
                         self.indexlist,
                         self.songs,
-                        group_song=group_song
+                        group_song=group
                     )
                     choose_from = e.remove_played(choose_from, self.playlist)
                     choose_from["Last"] = np.NaN
@@ -377,7 +379,7 @@ class DataBases:
                         self.sugg_cache[index], self.playlist
                     )
                     if (
-                        group_song == -1 and
+                        group == -1 and
                         len(recentgroups) == 1 and
                         recentgroups["Time added"].sum() == 5 and
                         datetime.utcnow().microsecond % 100 < 5
@@ -400,8 +402,13 @@ class DataBases:
                 choose_from["Percent"] = (
                     choose_from["Point"] / choose_from["Point"].sum() * 100
                 )
-                if group_song >= 1 and group_song <= 9:
-                    choose_from = choose_from[(choose_from["Group"] == group_song)]
+                if group != -1:
+                    if group % 100 == 0:
+                        choose_from = choose_from[
+                            (choose_from["Group"] // 100 == group // 100)
+                        ]
+                    else:
+                        choose_from = choose_from[(choose_from["Group"] == group)]
                     choose_from = choose_from[(
                         choose_from["artist_l"] != avoid_artist.lower()
                     )]

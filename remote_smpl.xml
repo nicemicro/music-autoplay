@@ -3,39 +3,39 @@
 	<Protocol>NEC</Protocol>
 	<Button text="1">
 		<code>16738455</code>
-		<command>change_1</command>
+		<command>change_100</command>
 	</Button>
 	<Button text="2">
 		<code>16750695</code>
-		<command>change_2</command>
+		<command>change_200</command>
 	</Button>
 	<Button text="3">
 		<code>16756815</code>
-		<command>change_3</command>
+		<command>change_300</command>
 	</Button>
 	<Button text="4">
 		<code>16724175</code>
-		<command>change_4</command>
+		<command>change_400</command>
 	</Button>
 	<Button text="5">
 		<code>16718055</code>
-		<command>change_5</command>
+		<command>change_500</command>
 	</Button>
 	<Button text="6">
 		<code>16743045</code>
-		<command>change_6</command>
+		<command>change_600</command>
 	</Button>
 	<Button text="7">
 		<code>16716015</code>
-		<command>change_7</command>
+		<command>change_700</command>
 	</Button>
 	<Button text="8">
 		<code>16726215</code>
-		<command>change_8</command>
+		<command>change_800</command>
 	</Button>
 	<Button text="9">
 		<code>16734885</code>
-		<command>change_9</command>
+		<command>change_900</command>
 	</Button>
 	<Button text="0">
 		<code>16730805</code>

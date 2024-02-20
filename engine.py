@@ -186,7 +186,9 @@ def get_song_id(
         song_matches = (song_matches) & (songs["title_l"] == title)
     if album != "":
         song_matches = (song_matches) & (songs["album_l"] == album)
-    if group != -1:
+    if group != -1 and group % 100 == 0:
+        song_matches = (song_matches) & (songs["Group"] // 100 == group // 100)
+    if group != -1 and group % 100 != 0:
         song_matches = (song_matches) & (songs["Group"] == group)
     return list(songs[song_matches].index)
 
@@ -791,7 +793,11 @@ def generate_hourly_song(
             left_index=True, right_index=True
         )
     )
-    if group_song >= 1 and group_song <= 9:
+    if group_song != -1 and group_song % 100 == 0:
+        choose_from = choose_from[
+            (choose_from["Group"] // 100 == group_song // 100)
+        ]
+    if group_song != -1 and group_song % 100 != 0:
         choose_from = choose_from[(choose_from["Group"] == group_song)]
     choose_from["Hour point"] = choose_from["Hour point"].fillna(0)
     if not group_points.empty:
@@ -1303,7 +1309,7 @@ def load_data(
         header=0,
         index_col=0,
         parse_dates=["Played last",	"Added first"],
-        dtype={"Group": "Int8"},
+        dtype={"Group": "Int16"},
     )
     songs["Album"] = songs["Album"].fillna("")
     songs["artist_l"] = songs["Artist"].str.lower()
