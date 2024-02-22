@@ -310,6 +310,7 @@ def find_similar(
         left_index=True,
         right_index=True
     )
+    result_sum["Method"] = "Sim"
     return result_sum
 
 
@@ -661,6 +662,8 @@ def cumul_similar(
         assert isinstance(song, int)
         collected.append(song)
         if not similars.index.empty:
+            if "Method" in similars.columns:
+                similars = similars.drop("Method", axis=1)
             album = latests.at[song, "Album"]
             if pd.isnull(album):
                 album = ""
@@ -712,9 +715,10 @@ def cumul_similar(
     result = result[(result["Point"] > 0)]
     result["Place"] = result.index + 1
     result["Last"] = result["O0"].astype("Int32")
+    result["Method"] = "CSim"
     result = result.set_index("song_id")
     if not show_all:
-        result = result[["Point", "Last", "Place", "Played last"]]
+        result = result[["Point", "Last", "Place", "Played last", "Method"]]
     result_merge: pd.DataFrame = pd.merge(
         result,
         songs.drop(["Played last", "Added first"], axis=1),
@@ -820,6 +824,7 @@ def generate_hourly_song(
     choose_from = choose_from.sort_values("Point", ascending=False)
     choose_from = choose_from[(choose_from["Point"]) >= 0]
     choose_from["Place"] = range(1, 1 + len(choose_from))
+    choose_from["Method"] = f"H{day_of_week}-{hour}_{group_song}"
     return choose_from
 
 
@@ -1324,6 +1329,7 @@ def load_data(
     playlist["Place"] = None
     playlist["Trial"] = None
     playlist["Last"] = None
+    playlist["Method"] = None
     if unique(playlist) < 800:
         return songlist, songs, playlist
     playlist2 = (

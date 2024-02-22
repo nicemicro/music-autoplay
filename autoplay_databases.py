@@ -274,25 +274,32 @@ class DataBases:
             artist_sugg["Point"] = (
                 artist_sugg["Point"] / artist_sugg["Point"].sum() * 100
             )
+            artist_sugg["Method"] = "ASugg"
             suggestion = pd.merge(
-                suggestion[["Point", "Played last", "Last"]],
-                artist_sugg[["Point", "Played last"]],
+                suggestion[["Point", "Played last", "Last", "Method"]],
+                artist_sugg[["Point", "Played last", "Method"]],
                 left_index=True,
                 right_index=True,
                 how="outer"
             )
-            suggestion["Point_x"] = suggestion["Point_x"].fillna(0)
-            suggestion["Point_y"] = suggestion["Point_y"].fillna(0)
             suggestion["Point"] = (
-                suggestion["Point_x"] * (0.5 + plays/30) +
-                suggestion["Point_y"] * (0.5 - plays/30)
+                suggestion["Point_x"].fillna(0) * (0.5 + plays/30) +
+                suggestion["Point_y"].fillna(0) * (0.5 - plays/30)
             )
             suggestion["Played last"] = (
                 suggestion[["Played last_x", "Played last_y"]].max(axis=1)
             )
+            suggestion["Method"] = (
+                suggestion["Method_x"].fillna("") +
+                suggestion["Method_y"].fillna("")
+            )
+            suggestion.loc[(suggestion["Method"] == "CSimASugg"), "Method"] = "CSim"
             suggestion = e.pd.merge(
                 suggestion.drop(
-                    ["Point_x", "Point_y", "Played last_x", "Played last_y"],
+                    [
+                        "Point_x", "Point_y", "Played last_x", "Played last_y",
+                        "Method_x", "Method_y"
+                    ],
                     axis=1
                 ),
                 self.songs.drop("Played last", axis=1),
@@ -320,6 +327,7 @@ class DataBases:
         ).drop_duplicates()
         choose_from["Point"] = 1000
         choose_from["Place"] = -1
+        choose_from["Method"] = f"R_{group}"
         return choose_from
 
     def suggest_song(self, group: int = -1) -> pd.DataFrame:
@@ -342,6 +350,19 @@ class DataBases:
         title: str = ""
         choose_from: pd.DataFrame = pd.DataFrame()
         recentgroups = e.list_group_count(self.playlist[-5:], self.songs)
+        recentgroup: int = -1
+        rand: int = 99
+        if recentgroups["Time added"].sum() == 5:
+            if len(recentgroups) == 1:
+                recentgroup = recentgroups.index[0]
+                rand = datetime.utcnow().microsecond % 100
+            else:
+                biggroups = (
+                    pd.DataFrame(recentgroups.index // 100 * 100)["Group"].unique()
+                )
+                if len(biggroups) == 1:
+                    recentgroup = biggroups[0]
+                    rand = datetime.utcnow().microsecond % 100
         while song.empty:
             if choose_from.empty:
                 index -= 1
@@ -378,20 +399,28 @@ class DataBases:
                     choose_from = e.remove_played(
                         self.sugg_cache[index], self.playlist
                     )
-                    if (
-                        group == -1 and
-                        len(recentgroups) == 1 and
-                        recentgroups["Time added"].sum() == 5 and
-                        datetime.utcnow().microsecond % 100 < 5
-                    ):
-                        print(f"Generating a song that was rarely played")
+                    if group == -1 and recentgroup != -1 and rand < 10:
+                        print(f"Generating rarely played of group {recentgroup}")
                         choose_from = pd.concat(
                             [
-                                self.get_rarely_played(
-                                    recentgroups.index[0]
-                                ),
+                                self.get_rarely_played(recentgroup),
                                 choose_from
                             ]
+                        )
+                    elif group == -1 and recentgroup != -1 and rand < 20:
+                        print(f"Enhancing non-group members of {recentgroup}")
+                        if recentgroup % 100 == 0:
+                            where = (
+                                choose_from["Group"] // 100 != recentgroup // 100
+                            )
+                        else:
+                            where = (choose_from["Group"] != recentgroup)
+                        choose_from.loc[where, "Point"] = (
+                            choose_from.loc[where, "Point"] * 3
+                        )
+                        choose_from.loc[where, "Method"] = "Antigrp"
+                        choose_from = choose_from.sort_values(
+                            "Point", ascending=False
                         )
                 choose_from = (
                     choose_from[~(choose_from.index.duplicated(keep="first"))]
@@ -435,6 +464,7 @@ class DataBases:
                 song["Place"] = choose_from.at[song_index, "Place"]
                 song["Last"] = choose_from.at[song_index, "Last"]
                 song["Trial"] = trial
+                song["Method"] = choose_from.at[song_index, "Method"]
             choose_from = choose_from.drop(song_index)
             if (
                 index in self.sugg_cache.keys() and
@@ -445,7 +475,9 @@ class DataBases:
             print("giving up")
             return song
         song = self.mergesongdata(song)
-        newline = (song[0:1][["Artist", "Album", "Title", "Place", "Last", "Trial"]])
+        newline = (song[0:1][[
+            "Artist", "Album", "Title", "Place", "Last", "Trial", "Method"
+        ]])
         newline = newline.rename(
             {0: last_index+1},
             axis="index"
@@ -555,8 +587,10 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, datetime.utcnow(), np.NaN, np.NaN]],
-            columns=["Artist", "Album", "Title", "Time added", "Place", "Trial"],
+            [[artist, album, title, datetime.utcnow(), np.NaN, np.NaN, "Man"]],
+            columns=[
+                "Artist", "Album", "Title", "Time added", "Place", "Trial", "Method"
+            ],
             index=[index]
         )
         self.playlist = pd.concat([self.playlist, new_line])
