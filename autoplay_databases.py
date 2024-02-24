@@ -313,21 +313,50 @@ class DataBases:
 
     def get_rarely_played(self, group: int = -1) -> pd.DataFrame:
         songs = e.remove_played(self.songs, self.playlist)
+        now = datetime.utcnow()
         if group != -1 and group % 100 != 0:
             songs = songs[(songs["Group"] == group)]
         elif group != -1:
             songs = songs[(songs["Group"] // 100 == group // 100)]
-        songs = songs[(songs["Played"]>0) & (songs["Played"]<=15)]
+        new_add: pd.DataFrame = (
+            songs[(songs["Played"] <= 30)]
+            .sort_values("Added first", ascending=False).head(40)
+        )
+        new_add["Point"] = (
+            1000 - new_add["Played"] ** 2 -
+            (now - new_add["Added first"]).dt.days
+        )
+        new_add["Method"] = f"NewA_{group}"
+        old_play: pd.DataFrame = (
+            songs[(songs["Played"] <= 30)]
+            .sort_values("Played last", ascending=True).head(40)
+        )
+        old_play["Point"] = (
+            1 - old_play["Played"] ** 2 +
+            (now - old_play["Played last"]).dt.days
+        )
+        old_play["Method"] = f"OldP_{group}"
+        rarely_p: pd.DataFrame = (
+            songs.sort_values(
+                ["Played", "Played last"], ascending=[True, True]
+            ).head(40)
+        )
+        rarely_p["Point"] = (
+            14 - rarely_p["Played"] ** 2 +
+            (now - rarely_p["Played last"]).dt.days / 365
+        )
+        rarely_p["Method"] = f"Rare_{group}"
+        for table in [new_add, old_play, rarely_p]:
+            table["Point"] = table["Point"] - table["Point"].min()
+            table["Point"] = table["Point"] / table["Point"].max() * 900 + 100
         choose_from = pd.concat(
             [
-                songs.sort_values("Added first", ascending=False).head(20),
-                songs.sort_values("Played", ascending=True).head(20),
-                songs.sort_values("Played last", ascending=True).head(20),
+                new_add.sort_values("Point", ascending=False).head(20),
+                old_play.sort_values("Point", ascending=False).head(20),
+                rarely_p.sort_values("Point", ascending=False).head(20),
             ]
-        ).drop_duplicates()
-        choose_from["Point"] = 1000
-        choose_from["Place"] = -1
-        choose_from["Method"] = f"R_{group}"
+        ).sort_values("Point", ascending=False)
+        choose_from["Place"] = range(1, len(choose_from) + 1)
         return choose_from
 
     def suggest_song(self, group: int = -1) -> pd.DataFrame:
@@ -432,6 +461,7 @@ class DataBases:
                     choose_from["Point"] / choose_from["Point"].sum() * 100
                 )
                 if group != -1:
+                    choose_from["Method"] = choose_from["Method"] + str(group)
                     if group % 100 == 0:
                         choose_from = choose_from[
                             (choose_from["Group"] // 100 == group // 100)
