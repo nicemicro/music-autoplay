@@ -102,18 +102,19 @@ class DataBases:
                 if (
                     result["artist"].str.lower().str.replace(",", "").
                     str.replace("\"", "")[0] != artist.lower()
-                ):
-                    return pd.DataFrame()
-                if (
+                    or
                     album and
                     result["album"].str.lower().str.replace(",", "").
                     str.replace("\"", "")[0] != album.lower()
-                ):
-                    return pd.DataFrame()
-                if (
+                    or
                     result["title"].str.lower().str.replace(",", "").
                     str.replace("\"", "")[0] != title.lower()
                 ):
+                    ids = e.get_song_id(self.songs, artist=artist, title=title)
+                    self.missing_songs += ids
+                    self.songs = self.songs[
+                        ~(self.songs.index.isin(self.missing_songs))
+                    ]
                     return pd.DataFrame()
             return result
         #print(f"Search: {artist}-{album}, found {len(result)}")
@@ -235,16 +236,15 @@ class DataBases:
     def sugg_from_artists(self, artist: str) -> pd.DataFrame:
         s_artists: pd.DataFrame = e.find_similar_artist(
             artist,
-            songs=self.songs,
+            songs=self.all_songs,
             similarities=self.similarities
         )
         s_artists = s_artists[(s_artists["Point"] > s_artists["Point"].sum()/50)]
         suggestion: pd.DataFrame = e.pd.merge(
             s_artists.drop("Artist", axis=1),
-            self.songs.drop("Played last", axis=1).reset_index(drop=False),
+            self.all_songs.drop("Played last", axis=1).reset_index(drop=False),
             how="left", on="artist_l"
         )
-        #suggestion["Album"] = suggestion["Album"].fillna("")
         suggestion["Point"] = suggestion["Point"] * suggestion["Played"]
         suggestion["Place"] = range(0, 0 + len(suggestion))
         suggestion = (
@@ -257,7 +257,7 @@ class DataBases:
         if index == -1:
             index = max(self.playlist.index)
         song_id_list: list[int] = e.get_song_id(
-            self.songs,
+            self.all_songs,
             self.playlist.at[index, "Artist"],
             self.playlist.at[index, "Title"],
             self.playlist.at[index, "Album"],
@@ -265,9 +265,9 @@ class DataBases:
         if len(song_id_list) == 0:
             plays = 0
         else:
-            plays = self.songs.loc[song_id_list[0], "Played"]
+            plays = self.all_songs.loc[song_id_list[0], "Played"]
         suggestion: pd.DataFrame = e.cumul_similar(
-            self.playlist[:index+1], self.songs, self.similarities,
+            self.playlist[:index+1], self.all_songs, self.similarities,
         )
         if plays < 15:
             artist_sugg = self.sugg_from_artists(self.playlist.at[index, "Artist"])
@@ -302,13 +302,14 @@ class DataBases:
                     ],
                     axis=1
                 ),
-                self.songs.drop("Played last", axis=1),
+                self.all_songs.drop("Played last", axis=1),
                 left_index=True,
                 right_index=True,
                 how="left"
             )
             suggestion = suggestion.sort_values("Point", ascending=False)
             suggestion["Place"] = range(1, len(suggestion)+1)
+        suggestion = suggestion[~(suggestion.index.isin(self.missing_songs))]
         return suggestion
 
     def get_rarely_played(self, group: int = -1) -> pd.DataFrame:
@@ -378,7 +379,7 @@ class DataBases:
         album: Union[str, float] = ""
         title: str = ""
         choose_from: pd.DataFrame = pd.DataFrame()
-        recentgroups = e.list_group_count(self.playlist[-5:], self.songs)
+        recentgroups = e.list_group_count(self.playlist[-5:], self.all_songs)
         recentgroup: int = -1
         rand: int = 99
         if recentgroups["Time added"].sum() == 5:
@@ -713,7 +714,7 @@ class DataBases:
         except OSError as error:
             print(error, "starting with empty list")
             self.missing_songs = []
-        self.missing_songs = self.missing_songs[int(len(self.missing_songs)/5):]
+        self.missing_songs = self.missing_songs[int(len(self.missing_songs)/20):]
         self.songs = self.all_songs[
             ~(self.all_songs.index.isin(self.missing_songs))
         ]

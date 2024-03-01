@@ -300,8 +300,6 @@ def find_similar(
         )
     assert(isinstance(songs, pd.DataFrame))
     song_id: list[int] = get_song_id(songs, artist, title, album)
-    if len(song_id) == 0:
-        return pd.DataFrame()
     sum_by_index: pd.DataFrame = find_similar_id(
         songs, song_id, timeframe, points, similarities=similarities)
     result_sum: pd.DataFrame = pd.merge(
@@ -593,23 +591,20 @@ def list_group_count(playlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFram
 def latest_songs(
     playlist: pd.DataFrame,
     timeframe: int = 30 * 60,
-    points: Optional[list[int]] = None
+    length: int = 3
 ) -> pd.DataFrame:
     """Returns a list of the latest songs from the playlist."""
-    if points is None:
-        points = [10, 5, 2, 1, 1]
-    points = pd.DataFrame(points, columns=["Multiplier"])
     if len(playlist.index) == 0:
-        return pd.DataFrame([])
+        return pd.DataFrame([], columns=["Artist", "Album", "Title"])
     time = playlist.at[playlist.index[-1], "Time added"] - datetime.timedelta(
         seconds=timeframe
     )
-    listend = playlist[(playlist["Time added"] > time)]
-    listend = listend.reset_index().sort_values("index", ascending=False)
-    result = pd.concat([listend.reset_index(drop=True), points], axis=1)[
-        ["Artist", "Album", "Title", "Multiplier"]
-    ]
-    return result[(result["Multiplier"] > 0) & (result["Artist"].notna())]
+    result = (
+        playlist[(playlist["Time added"] > time)][-3:]
+        .sort_index(ascending=False)
+        .reset_index(drop=True)
+    )[["Artist", "Album", "Title"]]
+    return result
 
 
 def cumul_similar(
