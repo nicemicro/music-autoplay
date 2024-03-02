@@ -137,11 +137,11 @@ class Not_played(ttk.Frame):
         self.songlistbox.heading('#2', text='Plays')
         self.songlistbox.heading('#3', text='Last played')
         self.songlistbox.heading('#4', text='First played')
-        self.songlistbox.column('#0', stretch=tk.YES)
-        self.songlistbox.column('#1', width=150)
-        self.songlistbox.column('#2', width=20)
-        self.songlistbox.column('#3', width=100)
-        self.songlistbox.column('#4', width=100)
+        self.songlistbox.column('#0', width=340, stretch=tk.YES)
+        self.songlistbox.column('#1', width=240)
+        self.songlistbox.column('#2', width=30)
+        self.songlistbox.column('#3', width=130)
+        self.songlistbox.column('#4', width=130)
         self.songlistbox.grid(row=0, column=0, sticky="nsew")
         self.songbar = ttk.Scrollbar(self.songlistframe, orient=tk.VERTICAL,
                                      command=self.songlistbox.yview)
@@ -266,10 +266,18 @@ class Not_played(ttk.Frame):
         toadd = newlist.to_dict(orient="records")
         index = 0
         for songinfo in toadd:
-            self.songlistbox.insert("", "end", iid=str(index), \
-                text=songinfo["display"], values=(songinfo["album"], \
-                int(songinfo["Played"]), songinfo["Played last"], \
-                songinfo["Added first"]))
+            self.songlistbox.insert(
+                "",
+                "end",
+                iid=str(index),
+                text=songinfo["display"],
+                values=(
+                    songinfo["album"],
+                    int(songinfo["Played"]),
+                    str(songinfo["Played last"]).split(".")[0],
+                    str(songinfo["Added first"]).split(".")[0]
+                )
+            )
             index += 1
     
     def add_song(self):
@@ -314,16 +322,22 @@ class Search(ttk.Frame):
         self.header.columnconfigure(1, weight = 10)
         self.header.columnconfigure(2, weight = 1)
         
-        self.songlistbox = ttk.Treeview(self, columns=("Plays", \
-            "Last", "First"), selectmode='browse', height=10)
+        self.songlistbox = ttk.Treeview(
+            self,
+            columns=("Plays", "Info", "Last", "First"),
+            selectmode='browse',
+            height=10
+        )
         self.songlistbox.heading('#0', text='Song')        
-        self.songlistbox.heading('#1', text='Plays')
-        self.songlistbox.heading('#2', text='Last played')
-        self.songlistbox.heading('#3', text='First played')
-        self.songlistbox.column('#0', stretch=tk.YES)
-        self.songlistbox.column('#1', width=20)
-        self.songlistbox.column('#2', width=100)
-        self.songlistbox.column('#3', width=100)
+        self.songlistbox.heading('#1', text='Info')
+        self.songlistbox.heading('#2', text='Plays')
+        self.songlistbox.heading('#3', text='Last played')
+        self.songlistbox.heading('#4', text='First played')
+        self.songlistbox.column('#0', width=480, stretch=tk.YES)
+        self.songlistbox.column('#1', width=100)
+        self.songlistbox.column('#2', width=30)
+        self.songlistbox.column('#3', width=130)
+        self.songlistbox.column('#4', width=130)
         self.songlistbox.grid(row=1, column=0, columnspan=3, sticky="nsew")
         self.songbar = ttk.Scrollbar(self, orient=tk.VERTICAL,
                                      command=self.songlistbox.yview)
@@ -352,7 +366,6 @@ class Search(ttk.Frame):
         if len(search_string) < 2:
             return
         self.controller.search_string(search_string, self._show_prev_search.get()!=1)
-        #self.controller.search_artist(search_string)
 
     def setlist(self, newlist: pd.DataFrame) -> None:
         elements = self.songlistbox.get_children()
@@ -360,15 +373,35 @@ class Search(ttk.Frame):
             for element in elements:
                 self.songlistbox.delete(element)
         if newlist.empty: return
+        for colname in ["track", "album", "date", "genre"]:
+            if colname not in newlist.columns:
+                newlist[colname] = ""
+        newlist["trackstr"] = ""
+        newlist.loc[
+            ((newlist["track"].notna()) & (newlist["track"] != "")),
+            "trackstr"
+        ] = (
+            newlist.loc[
+                ((newlist["track"].notna()) & (newlist["track"] != "")),
+                "track"
+            ]
+            .astype("string") + ". "
+        )
         for colname in ["album", "Played last", "Added first"]:
             mask = (newlist[colname].isnull())
             newlist.loc[mask, colname] = "-"
         mask = (newlist["Played"].isnull())
         newlist.loc[mask, "Played"] = 0
-        artists = newlist.groupby(["artist"]).agg({"title": "count"}).\
-            reset_index(drop=False)[["artist"]]
-        albums = newlist.groupby(["artist", "album"]).agg({"title": "count"}).\
-            reset_index(drop=False)[["artist", "album"]]
+        artists = (
+            newlist.groupby(["artist"])
+            .agg({"title": "count"})
+            .reset_index(drop=False)[["artist"]]
+        )
+        albums = (
+            newlist.groupby(["artist", "album", "date"])
+            .agg({"title": "count"})
+            .reset_index(drop=False)[["artist", "album", "date"]]
+        )
         for art_ind in artists.index:
             self.songlistbox.insert(
                 "",
@@ -381,18 +414,22 @@ class Search(ttk.Frame):
                 albums.at[alb_ind, "artist"],
                 "end",
                 iid=(albums.at[alb_ind, "artist"] + albums.at[alb_ind, "album"]),
-                text=albums.at[alb_ind, "album"]
+                text=albums.at[alb_ind, "album"],
+                values=(albums.at[alb_ind, "date"], "", "", "")
             )
         for s_ind in newlist.index:
             self.songlistbox.insert(
                 (newlist.at[s_ind, "artist"] + newlist.at[s_ind, "album"]),
                 "end",
                 iid=s_ind,
-                text=newlist.at[s_ind, "title"],
+                text=(
+                    newlist.at[s_ind, "trackstr"] + newlist.at[s_ind, "title"]
+                ),
                 values=(
+                    newlist.at[s_ind, "genre"],
                     int(newlist.at[s_ind, "Played"]),
-                    newlist.at[s_ind, "Played last"],
-                    newlist.at[s_ind, "Added first"]
+                    str(newlist.at[s_ind, "Played last"]).split(".")[0],
+                    str(newlist.at[s_ind, "Added first"]).split(".")[0]
                 )
             )
     
