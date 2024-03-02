@@ -636,6 +636,11 @@ class DataBases:
         indeces: list[int] = list(
             self.playlist[self.playlist.index >= self.currentplayed].index
         )
+        if delfrom >= len(indeces):
+            print(" > already deleted, exiting")
+            return pd.DataFrame(
+                [{"delfrom": delfrom, "delto": delto, "jump": jump}]
+            )
         if delto == -1:
             dellist = list(
                 self.playlist[
@@ -656,14 +661,19 @@ class DataBases:
             self.sugg_cache.pop(todel)
         self.playlist = self.playlist.drop(dellist)
         if delfrom == 0:
-            if len(self.playlist[self.playlist.index < self.currentplayed].index) == 0:
+            if (
+                len(self.playlist[
+                    self.playlist.index < self.currentplayed
+                ].index) == 0
+            ):
                 self.currentplayed = -1
             else:
                 self.currentplayed = (
                     max(self.playlist[self.playlist.index < self.currentplayed].index)
                 )
-        return pd.DataFrame([{"delfrom": delfrom, "delto": delto,
-                              "jump": jump}])
+        return pd.DataFrame(
+            [{"delfrom": delfrom, "delto": delto, "jump": jump}]
+        )
 
     def db_maintain(self):
         status = self.music.status()

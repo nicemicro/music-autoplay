@@ -150,20 +150,12 @@ class MusicHandler():
             self.play_song(mpdlistlen - 1)
     
     def find_suggested_song(self) -> None:
-        #currentsong = self.music.currentsong()
-        #if len(currentsong) == 0:
-        #    return
-        #c_artist, c_album, c_title = self.current_song_data(currentsong)
-        #self.comm_que.put(["playlist_append", [c_artist, c_album, c_title]])
-        #self.db.playlist_append(c_artist, c_album, c_title)
         assert not "suggest_song" in self.result_storage, \
             "This shouldn't be called if we already have a search going!"
         group = self.wanted_group
         self.wanted_group = -1
         print(f"> Initiating search for new suggestion, group {group}")
         self.comm_que.put(["suggest_song", [group]])
-        #suggestion = self.db.suggest_song(self.music, c_artist, c_album,
-        #                                  c_title)
         self.result_storage["suggest_song"] = None
     
     def execute_play_file(self) -> None:
