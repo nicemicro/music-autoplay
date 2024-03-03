@@ -129,9 +129,11 @@ class Not_played(ttk.Frame):
         # MIDSECTION
         self.songlistframe = ttk.Frame(self)
         self.songlistframe.grid(row=0, column=0, columnspan=5, sticky="nsew")
-        self.songlistbox = ttk.Treeview(self.songlistframe, \
-            columns=("Album", "Plays", "Last", "First"), \
-            selectmode='browse', height=25)
+        self.songlistbox = ttk.Treeview(
+            self.songlistframe,
+            columns=("Album", "Plays", "Last", "First"),
+            selectmode='browse', height=25
+        )
         self.songlistbox.heading('#0', text='Song')
         self.songlistbox.heading('#1', text='Album')
         self.songlistbox.heading('#2', text='Plays')
@@ -143,9 +145,17 @@ class Not_played(ttk.Frame):
         self.songlistbox.column('#3', width=130)
         self.songlistbox.column('#4', width=130)
         self.songlistbox.grid(row=0, column=0, sticky="nsew")
-        self.songbar = ttk.Scrollbar(self.songlistframe, orient=tk.VERTICAL,
-                                     command=self.songlistbox.yview)
+        self.songbar = ttk.Scrollbar(
+            self.songlistframe,
+            orient=tk.VERTICAL,
+            command=self.songlistbox.yview
+        )
         self.songbar.grid(row=0, column=1, sticky="nsew")
+        self.loading_bar = ttk.Progressbar(
+            self.songlistframe, mode="indeterminate"
+        )
+        self.loading_bar.start(10)
+        self.loading_bar.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.songlistbox.configure(yscrollcommand=self.songbar.set)
         self.songlistframe.columnconfigure(0, weight=1)
         self.songlistframe.columnconfigure(1, weight=0)
@@ -158,13 +168,14 @@ class Not_played(ttk.Frame):
         minplay_frame = ttk.Frame(self)
         minplay_frame.columnconfigure(0, weight=1)
         minplay_frame.grid(row=1, column=1, columnspan=2, sticky="nswe")
-        self.minplay_value = tk.IntVar(value=0)
+        self.minplay_value = tk.IntVar(value=1)
         self.minplay_scale = ttk.Scale(
             minplay_frame,
             orient="horizontal",
             length=30,
-            from_=0,
+            from_=1,
             to=30,
+            value=1,
             command=lambda x: self.change_minmax(self.minplay_value, float(x))
         )
         self.minplay_scale.grid(row=0, column=0, sticky="nswe")
@@ -196,43 +207,36 @@ class Not_played(ttk.Frame):
         )
         self.maxplay_text.grid(row=0, column=1, sticky="ns")
             
-        ttk.Button(
+        self.back_button = ttk.Button(
             self,
             text="<- Page",
-            command=lambda: self.controller.prev_page()
-        ).grid(row=2, column=0, columnspan=1)
-        ttk.Button(
-            self,
-            text="Recently added",
-            command=lambda: self.controller.switch_page(
-                "new add",
-                self.minplay_value.get(),
-                self.maxplay_value.get()
+            command=lambda: self.prev_page()
+        )
+        self.back_button.state(["disabled"])
+        self.back_button.grid(row=2, column=0, columnspan=1)
+        self.button_types: dict[str, str] = {
+            "Recently added": "new add",
+            "Not played recently": "old p",
+            "Rarely played": "rarely"
+        }
+        self.generate_buttons: dict[str, ttk.Button] = {}
+        counter=1
+        for name in self.button_types:
+            self.generate_buttons[name] = ttk.Button(
+                self,
+                text=name,
+                command=lambda x=name: self.switch_page(x)
             )
-        ).grid(row=2, column=1, columnspan=1)
-        ttk.Button(
-            self,
-            text="Not played recently",
-            command=lambda: self.controller.switch_page(
-                "old p",
-                self.minplay_value.get(),
-                self.maxplay_value.get()
-            )
-        ).grid(row=2, column=2, columnspan=1)
-        ttk.Button(
-            self,
-            text="Rarely played",
-            command=lambda: self.controller.switch_page(
-                "rarely",
-                self.minplay_value.get(),
-                self.maxplay_value.get()
-            )
-        ).grid(row=2, column=3, columnspan=1)
-        ttk.Button(
+            self.generate_buttons[name].grid(row=2, column=counter, columnspan=1)
+            self.generate_buttons[name].state(["disabled"])
+            counter += 1
+        self.fwd_button = ttk.Button(
             self,
             text="Page ->",
-            command= lambda: self.controller.next_page()
-        ).grid(row=2, column=4, columnspan=1)
+            command= lambda: self.next_page()
+        )
+        self.fwd_button.state(["disabled"])
+        self.fwd_button.grid(row=2, column=4, columnspan=1)
             
         self.columnconfigure(0, weight = 1)
         self.columnconfigure(1, weight = 1)
@@ -242,6 +246,31 @@ class Not_played(ttk.Frame):
         self.rowconfigure(0, weight = 1)
         self.rowconfigure(1, weight = 0)
         self.rowconfigure(2, weight = 0)
+    
+    def start_loading(self):
+        self.loading_bar.start(10)
+        self.loading_bar.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.back_button.state(["disabled"])
+        for button in self.generate_buttons.values():
+            button.state(["disabled"])
+        self.fwd_button.state(["disabled"])
+    
+
+    def prev_page(self):
+        self.start_loading()
+        self.controller.prev_page()
+
+    def next_page(self):
+        self.start_loading()
+        self.controller.next_page()
+
+    def switch_page(self, button_name: str):
+        self.start_loading()
+        self.controller.switch_page(
+            self.button_types[button_name],
+            self.minplay_value.get(),
+            self.maxplay_value.get()
+        )
 
     def change_minmax(self, textvariable: tk.IntVar, value: float) -> None:
         if textvariable == self.minplay_value:
@@ -279,6 +308,12 @@ class Not_played(ttk.Frame):
                 )
             )
             index += 1
+        self.loading_bar.stop()
+        self.loading_bar.grid_forget()
+        self.back_button.state(["!disabled"])
+        for button in self.generate_buttons.values():
+            button.state(["!disabled"])
+        self.fwd_button.state(["!disabled"])
     
     def add_song(self):
         selected = self.songlistbox.focus()
