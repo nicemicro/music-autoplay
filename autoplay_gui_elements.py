@@ -388,8 +388,11 @@ class Search(ttk.Frame):
             .astype("string") + ". "
         )
         for colname in ["album", "Played last", "Added first"]:
-            mask = (newlist[colname].isnull())
+            mask = ((newlist[colname].isnull()) | (newlist[colname] == ""))
             newlist.loc[mask, colname] = "-"
+        for colname in ["genre", "date", "track"]:
+            mask = ((newlist[colname].isnull()) | (newlist[colname] == "-1"))
+            newlist.loc[mask, colname] = ""
         mask = (newlist["Played"].isnull())
         newlist.loc[mask, "Played"] = 0
         artists = (
@@ -413,13 +416,21 @@ class Search(ttk.Frame):
             self.songlistbox.insert(
                 albums.at[alb_ind, "artist"],
                 "end",
-                iid=(albums.at[alb_ind, "artist"] + albums.at[alb_ind, "album"]),
+                iid=(
+                    albums.at[alb_ind, "artist"] +
+                    albums.at[alb_ind, "album"] +
+                    albums.at[alb_ind, "date"]
+                ),
                 text=albums.at[alb_ind, "album"],
                 values=(albums.at[alb_ind, "date"], "", "", "")
             )
         for s_ind in newlist.index:
             self.songlistbox.insert(
-                (newlist.at[s_ind, "artist"] + newlist.at[s_ind, "album"]),
+                (
+                    newlist.at[s_ind, "artist"] +
+                    newlist.at[s_ind, "album"] +
+                    newlist.at[s_ind, "date"]
+                ),
                 "end",
                 iid=s_ind,
                 text=(
