@@ -529,7 +529,7 @@ class DataBases:
             result_list = self.music.search(*search_list)
         if not result_list:
             return pd.DataFrame([])
-        result = self.mergesongdata(pd.DataFrame(result_list))
+        result = self.mergesongdata(pd.DataFrame(result_list).astype(str))
         if hide_played:
             #result.to_csv("result.csv")
             #e.remove_played(result, self.playlist).to_csv("result_cut.csv")
