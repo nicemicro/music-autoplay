@@ -141,9 +141,9 @@ class Not_played(ttk.Frame):
         self.songlistbox.heading('#4', text='First played')
         self.songlistbox.column('#0', width=340, stretch=tk.YES)
         self.songlistbox.column('#1', width=240)
-        self.songlistbox.column('#2', width=30)
-        self.songlistbox.column('#3', width=130)
-        self.songlistbox.column('#4', width=130)
+        self.songlistbox.column('#2', width=40)
+        self.songlistbox.column('#3', width=160)
+        self.songlistbox.column('#4', width=160)
         self.songlistbox.grid(row=0, column=0, sticky="nsew")
         self.songbar = ttk.Scrollbar(
             self.songlistframe,
@@ -370,9 +370,9 @@ class Search(ttk.Frame):
         self.songlistbox.heading('#4', text='First played')
         self.songlistbox.column('#0', width=480, stretch=tk.YES)
         self.songlistbox.column('#1', width=100)
-        self.songlistbox.column('#2', width=30)
-        self.songlistbox.column('#3', width=130)
-        self.songlistbox.column('#4', width=130)
+        self.songlistbox.column('#2', width=40)
+        self.songlistbox.column('#3', width=160)
+        self.songlistbox.column('#4', width=160)
         self.songlistbox.grid(row=1, column=0, columnspan=3, sticky="nsew")
         self.songbar = ttk.Scrollbar(self, orient=tk.VERTICAL,
                                      command=self.songlistbox.yview)
