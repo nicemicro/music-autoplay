@@ -293,7 +293,11 @@ class DataBases:
                 suggestion["Method_x"].fillna("") +
                 suggestion["Method_y"].fillna("")
             )
-            suggestion.loc[(suggestion["Method"] == "CSimASugg"), "Method"] = "CSim"
+            suggestion.loc[
+                (suggestion["Method"] == "CSimASugg") &
+                (suggestion["Point_y"] > suggestion["Point_x"]),
+                "Method"
+            ] = "ASuggCSim"
             suggestion = e.pd.merge(
                 suggestion.drop(
                     [
@@ -312,13 +316,16 @@ class DataBases:
         suggestion = suggestion[~(suggestion.index.isin(self.missing_songs))]
         return suggestion
 
-    def get_rarely_played(self, group: int = -1) -> pd.DataFrame:
+    def get_rarely_played(
+        self, group: int = -1, min_play: int = 0
+    ) -> pd.DataFrame:
         songs = e.remove_played(self.songs, self.playlist)
         now = datetime.utcnow()
         if group != -1 and group % 100 != 0:
             songs = songs[(songs["Group"] == group)]
         elif group != -1:
             songs = songs[(songs["Group"] // 100 == group // 100)]
+        songs = songs[songs["Played"] > min_play]
         new_add: pd.DataFrame = (
             songs[(songs["Played"] <= 30)]
             .sort_values("Added first", ascending=False).head(40)
@@ -382,7 +389,19 @@ class DataBases:
         recentgroups = e.list_group_count(self.playlist[-5:], self.all_songs)
         recentgroup: int = -1
         rand: int = 99
-        if recentgroups["Time added"].sum() == 5:
+        if (
+            recentgroups["Time added"].sum() == 5 and not (
+                len(self.playlist) >= 2 and
+                (
+                    self.playlist["Artist"].values[-1] ==
+                    self.playlist["Artist"].values[-2]
+                ) and
+                (
+                    self.playlist["Album"].values[-1] ==
+                    self.playlist["Album"].values[-2]
+                )
+            )
+        ):
             if len(recentgroups) == 1:
                 recentgroup = recentgroups.index[0]
                 rand = datetime.utcnow().microsecond % 100
@@ -431,11 +450,12 @@ class DataBases:
                     )
                     if group == -1 and recentgroup != -1 and rand < 10:
                         print(f"Generating rarely played of group {recentgroup}")
-                        choose_from = pd.concat(
-                            [
-                                self.get_rarely_played(recentgroup),
-                                choose_from
-                            ]
+                        rarely_played = self.get_rarely_played(
+                            recentgroup, min(rand, 3)
+                        )
+                        choose_from = (
+                            pd.concat([rarely_played, choose_from])
+                            .sort_values("Point", ascending=False)
                         )
                     elif group == -1 and recentgroup != -1 and rand < 20:
                         print(f"Enhancing non-group members of {recentgroup}")
