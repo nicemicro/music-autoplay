@@ -9,6 +9,7 @@ Created on Sun Oct  3 20:35:00 2021
 from datetime import datetime
 from typing import Union, Optional
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 import engine as e
@@ -33,11 +34,21 @@ class DataBases:
         self.missing_songs: list[int] = []
         self.load_file(filename)
         self.currentplayed: int
+        self.cumul_pointlist: list[npt.NDArray[np.int32]] = [
+            np.array([
+                [100,  0,  0,  0,  0],
+                [ 80, 20,  0,  0,  0],
+                [ 50, 10, 10,  0,  0],
+                [ 20,  0,  1,  5,  0],
+                [ 10,  0,  1, 50,  1]
+            ])
+        ]
         if self.playlist.empty:
             self.currentplayed = -1
         else:
             self.currentplayed = self.playlist.index[-1]
         self.sugg_cache: dict[int, pd.DataFrame] = {}
+        self.ignore_songs: dict[int, list[int]] = {}
         self.playablelist = pd.DataFrame([])
         self.plstartindex = 0
         self.plendindex = 0
@@ -267,7 +278,10 @@ class DataBases:
         else:
             plays = self.all_songs.loc[song_id_list[0], "Played"]
         suggestion: pd.DataFrame = e.cumul_similar(
-            self.playlist[:index+1], self.all_songs, self.similarities,
+            self.playlist[:index+1],
+            self.all_songs,
+            self.similarities,
+            points=self.cumul_pointlist[0]
         )
         if plays < 15:
             artist_sugg = self.sugg_from_artists(self.playlist.at[index, "Artist"])
@@ -374,6 +388,11 @@ class DataBases:
         print(f" -- Looking for similars after {last_index}, group {group}--")
         print(self.playlist[-5:])
         index = last_index + 1
+        while index not in self.playlist.index and index >= 0:
+            index -= 1
+        currentindex: int = index
+        if currentindex not in self.ignore_songs:
+            self.ignore_songs[currentindex] = []
         artist: str = ""
         avoid_artist: str = ""
         if (
@@ -414,9 +433,6 @@ class DataBases:
                     rand = datetime.utcnow().microsecond % 100
         while song.empty:
             if choose_from.empty:
-                index -= 1
-                while index not in self.playlist.index and index >= 0:
-                    index -= 1
                 if index <= -3:
                     break
                 elif index == -2:
@@ -433,7 +449,7 @@ class DataBases:
                     )
                 ):
                     #If there is no songs in the near past to compare to
-                    index = - 1
+                    index = -1
                     choose_from = e.generate_hourly_song(
                         self.indexlist,
                         self.songs,
@@ -478,6 +494,9 @@ class DataBases:
                 choose_from = choose_from.iloc[
                     0:min(len(choose_from), max(25, int(len(choose_from)/3)))
                 ]
+                choose_from = choose_from[
+                    ~(choose_from.index.isin(self.ignore_songs[currentindex]))
+                ]
                 choose_from["Percent"] = (
                     choose_from["Point"] / choose_from["Point"].sum() * 100
                 )
@@ -492,6 +511,9 @@ class DataBases:
                     choose_from = choose_from[(
                         choose_from["artist_l"] != avoid_artist.lower()
                     )]
+                if index > 0:
+                    index = 0
+                index -= 1
             song_index, trial = e.choose_song(choose_from, avoid_artist)
             if song_index == -1:
                 print("Nothing has been found... trying again")
@@ -522,6 +544,7 @@ class DataBases:
                 song_index in self.sugg_cache[index].index
             ):
                 self.sugg_cache[index] = self.sugg_cache[index].drop(song_index)
+            self.ignore_songs[currentindex].append(song_index)
         if song.empty:
             print("giving up")
             return song
@@ -676,6 +699,8 @@ class DataBases:
             )
         print(f"  Deleting indexes {dellist}")
         for todel in dellist:
+            if todel in self.ignore_songs:
+                self.ignore_songs.pop(todel)
             if todel not in self.sugg_cache.keys():
                 continue
             self.sugg_cache.pop(todel)

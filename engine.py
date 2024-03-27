@@ -600,7 +600,7 @@ def latest_songs(
         seconds=timeframe
     )
     result = (
-        playlist[(playlist["Time added"] > time)][-3:]
+        playlist[(playlist["Time added"] > time)][-length:]
         .sort_index(ascending=False)
         .reset_index(drop=True)
     )[["Artist", "Album", "Title"]]
@@ -622,7 +622,7 @@ def cumul_similar(
         points = np.array([[10, 0, 0], [8, 2, 0], [5, 3, 1]], dtype=np.int32)
     if single_points is None:
         single_points = [10, 5, 2, 1, 1]
-    latests = latest_songs(playlist, timeframe, list(points.sum(axis=1)))
+    latests = latest_songs(playlist, timeframe, points.shape[0])
     songqueue: mp.Queue = mp.Queue()
     processes: dict[int, mp.Process] = {}
     song: int
