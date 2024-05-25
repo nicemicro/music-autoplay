@@ -1315,6 +1315,7 @@ def load_data(
     songs["artist_l"] = songs["Artist"].str.lower()
     songs["title_l"] = songs["Title"].str.lower()
     songs["album_l"] = songs["Album"].fillna("").str.lower()
+    songs = songs.drop_duplicates(subset=["artist_l", "album_l", "title_l"])
     playlist_old = pd.read_csv(
         filename + "_playlist.csv",
         sep=",",
