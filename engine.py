@@ -1315,16 +1315,33 @@ def load_data(
     songs["artist_l"] = songs["Artist"].str.lower()
     songs["title_l"] = songs["Title"].str.lower()
     songs["album_l"] = songs["Album"].fillna("").str.lower()
+    playlist_old = pd.read_csv(
+        filename + "_playlist.csv",
+        sep=",",
+        header=0,
+        parse_dates=["Time added"],
+        dtype={"Place": "Int16", "Trial": "Int16", "Last": "Int16"}
+    )
     now = datetime.datetime.utcnow()
     playlist = songlist[(
         songlist["Time added"] >
         now - datetime.timedelta(days=21)
     )]
     playlist = playlist.sort_values(by="Time added").reset_index(drop=True)
-    playlist["Place"] = None
-    playlist["Trial"] = None
-    playlist["Last"] = None
-    playlist["Method"] = None
+    playlist["Secs"] = (
+        (playlist["Time added"] - pd.Timestamp("1970-01-01")).dt.total_seconds()
+    )
+    playlist_old["Secs"] = (
+        (playlist_old["Time added"] - pd.Timestamp("1970-01-01"))
+        .dt.total_seconds()
+    )
+    playlist = pd.merge(
+        playlist,
+        playlist_old[["Secs", "Place", "Trial", "Last", "Method"]],
+        how="left",
+        on="Secs"
+    )
+    playlist = playlist.drop(labels="Secs", axis=1)
     if unique(playlist) < 800:
         return songlist, songs, playlist
     playlist2 = (

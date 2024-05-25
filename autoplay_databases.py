@@ -613,7 +613,8 @@ class DataBases:
             (self.songlist.at[0, "Title"].lower() == title.lower())
         ):
             return
-        new_line = pd.DataFrame([[artist, album, title, datetime.utcnow()]],
+        time_now = datetime.utcnow()
+        new_line = pd.DataFrame([[artist, album, title, time_now]],
                                 columns=["Artist", "Album", "Title",
                                          "Time added"])
         self.songlist = pd.concat([new_line, self.songlist]).reset_index(drop=True)
@@ -621,7 +622,8 @@ class DataBases:
         while index <= max(self.playlist.index):
             if index not in self.playlist.index:
                 continue
-            self.playlist.at[index, "Time added"] = datetime.utcnow()
+            self.playlist.at[index, "Time added"] = time_now
+            time_now = datetime.utcnow()
             index += 1
         self.save_file()
     
