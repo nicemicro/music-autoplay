@@ -61,7 +61,7 @@ class AppContainer(tk.Tk):
         if cmd_args.start_playing or cmd_args.alarmclock:
             self.play_next(0)
         if cmd_args.alarmclock:
-            self.music_handler.set_volume(50)
+            self.music_handler.set_volume(30)
             self.after(5000, self.alarmclock_volumeup)
 
         self.after(500, self.update_current_played)
@@ -94,7 +94,7 @@ class AppContainer(tk.Tk):
 
     def alarmclock_volumeup(self):
         self.volume(1)
-        if self.music_handler.get_volume() < 100:
+        if self.music_handler.get_volume() < 70:
             self.after(5000, self.alarmclock_volumeup)
 
     def scrub_to_percent(self, percent: float) -> None:

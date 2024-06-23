@@ -144,7 +144,8 @@ class IrReceiverHandler():
             repeater: bool = False
             try:
                 ir_code = self.decoder(ir_pulse)
-            except ValueError:
+            except ValueError as error:
+                print(f" [IR] {error}")
                 continue
             if ir_code == -1:
                 if not self.last_repeated:
@@ -194,10 +195,11 @@ def NEC_decode(data: list[tuple[int, float]]) -> int:
     # (high and low are reversed on the RPi compared to the reference)
     # NEC code starts with 9 ms low pulse (but it might have been realized
     # too late, so shorter time is acceptable)
+    #print(f" [IR] received a message of length {len(data)}")
     if len(data) < 3:
         return 0
     lowhigh, timegap = data.pop(0)
-    if lowhigh or timegap < 5000 or timegap > 11000:
+    if lowhigh or timegap < 10 or timegap > 11000:
         raise ValueError("Data is not formatted in accordance with NEC")
     lowhigh, timegap = data.pop(0)
     # A repeat code (button is kept pressed down) gets a 2.25 ms high pulse
@@ -220,5 +222,5 @@ def NEC_decode(data: list[tuple[int, float]]) -> int:
             else:
                 #messagestr += "0"
                 message *= 2
-    #print(messagestr)
+    #print(f" [IR] message is {message}")
     return message
