@@ -27,7 +27,6 @@ class DataBases:
         self.artists = pd.DataFrame([])
         self.albums = pd.DataFrame([])
         self.playlist = pd.DataFrame([])
-        self.songs = pd.DataFrame([])
         self.all_songs = pd.DataFrame([])
         self.indexlist = pd.DataFrame([])
         self.similarities = pd.DataFrame([])
@@ -99,9 +98,12 @@ class DataBases:
         if len(result) == 0:
             result = self.music.search(*s_strings2)
         if len(result) == 0:
-            ids = e.get_song_id(self.songs, artist=artist, title=title)
+            ids = e.get_song_id(
+                self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
+                artist=artist,
+                title=title
+            )
             self.missing_songs += ids
-            self.songs = self.songs[~(self.songs.index.isin(self.missing_songs))]
             return pd.DataFrame(result)
         if len(result) == 1:
             #print(f"Search: {artist}-{album}-{title}, found {len(result)}")
@@ -121,11 +123,14 @@ class DataBases:
                     result["title"].str.lower().str.replace(",", "").
                     str.replace("\"", "")[0] != title.lower()
                 ):
-                    ids = e.get_song_id(self.songs, artist=artist, title=title)
+                    ids = e.get_song_id(
+                        self.all_songs[
+                            ~(self.all_songs.index.isin(self.missing_songs))
+                        ],
+                        artist=artist,
+                        title=title
+                    )
                     self.missing_songs += ids
-                    self.songs = self.songs[
-                        ~(self.songs.index.isin(self.missing_songs))
-                    ]
                     return pd.DataFrame()
             return result
         #print(f"Search: {artist}-{album}, found {len(result)}")
@@ -141,13 +146,18 @@ class DataBases:
             == artist.lower())
         ]
         if result.empty:
-            ids = e.get_song_id(self.songs, artist=artist, title=title)
+            ids = e.get_song_id(
+                self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
+                artist=artist,
+                title=title
+            )
             self.missing_songs += ids
-            self.songs = self.songs[~(self.songs.index.isin(self.missing_songs))]
         return result.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
-        kwargs["songs"] = self.songs
+        kwargs["songs"] = self.all_songs[
+            ~(self.all_songs.index.isin(self.missing_songs))
+        ]
         self.playablelist = e.filter_and_order(
             *args, **kwargs
         )
@@ -178,8 +188,14 @@ class DataBases:
                 .str.replace("\"", "")
             )
         #music_file_list.to_csv("music_file_list.csv")
-        withalbum = self.all_songs[(self.all_songs["album_l"]) != ""]
-        noalbum = self.all_songs[(self.all_songs["album_l"]) == ""]
+        withalbum = (
+            self.all_songs[(self.all_songs["album_l"]) != ""]
+            .reset_index()
+        )
+        noalbum = (
+            self.all_songs[(self.all_songs["album_l"]) == ""]
+            .reset_index()
+        )
         withalbum = pd.merge(
             music_file_list, withalbum, how="inner",
             on=["artist_l", "album_l" ,"title_l"]
@@ -192,17 +208,32 @@ class DataBases:
         all_found = pd.concat([noalbum, withalbum])
         result = pd.merge(
                 music_file_list.set_index("index"),
-                all_found[["Played last", "Added first", "Played"]],
+                all_found[["song_id", "Played last", "Added first", "Played"]],
                 how="left",
                 left_index=True,
                 right_index=True
                 )
+        missing_songs = pd.DataFrame(self.missing_songs)
+        self.missing_songs = (
+            missing_songs[~missing_songs[0].isin(result["song_id"])]
+        )[0].to_list()
         result["Artist"] = result["artist"].str.replace(",", "").str.replace("\"", "")
         result["Album"] = result["album"].str.replace(",", "").str.replace("\"", "")
         result["Title"] = result["title"].str.replace(",", "").str.replace("\"", "")
         return result
 
+    def check_missing_song(self, number: int):
+        to_check: list[int] = self.missing_songs[:number]
+        self.missing_songs = self.missing_songs[number:]
+        for id in to_check:
+            self.search_song(
+                self.all_songs.at[id, "Artist"],
+                self.all_songs.at[id, "Album"],
+                self.all_songs.at[id, "Title"]
+            )
+
     def list_songs_fwd(self, num: int):
+        self.check_missing_song(10)
         index = self.plendindex
         songs = self.playablelist
         new_list = pd.DataFrame([])
@@ -223,6 +254,7 @@ class DataBases:
         return new_list
 
     def list_songs_bck(self, num):
+        self.check_missing_song(10)
         index = self.plstartindex - 1
         songs = self.playablelist
         new_list = pd.DataFrame([])
@@ -333,7 +365,10 @@ class DataBases:
     def get_rarely_played(
         self, group: int = -1, min_play: int = 0
     ) -> pd.DataFrame:
-        songs = e.remove_played(self.songs, self.playlist)
+        songs = e.remove_played(
+            self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
+            self.playlist
+        )
         now = datetime.utcnow()
         if group != -1 and group % 100 != 0:
             songs = songs[(songs["Group"] == group)]
@@ -436,7 +471,12 @@ class DataBases:
                 if index <= -3:
                     break
                 elif index == -2:
-                    choose_from = self.songs.sort_values("Played", ascending=False)
+                    choose_from = (
+                        self.all_songs[
+                            ~(self.all_songs.index.isin(self.missing_songs))
+                        ]
+                        .sort_values("Played", ascending=False)
+                    )
                     choose_from["Point"] = choose_from["Played"]
                     choose_from["Place"] = range(1, 1 + len(choose_from))
                     choose_from["Last"] = np.NaN
@@ -452,7 +492,9 @@ class DataBases:
                     index = -1
                     choose_from = e.generate_hourly_song(
                         self.indexlist,
-                        self.songs,
+                        self.all_songs[
+                            ~(self.all_songs.index.isin(self.missing_songs))
+                        ],
                         group_song=group
                     )
                     choose_from = e.remove_played(choose_from, self.playlist)
@@ -723,6 +765,7 @@ class DataBases:
         )
 
     def db_maintain(self):
+        self.check_missing_song(5)
         status = self.music.status()
         if status["state"] != "play":
             return
@@ -767,14 +810,14 @@ class DataBases:
             self.all_songs, indexlist=self.indexlist
         )
         try:
-            self.missing_songs = pd.read_csv("missing.csv", header=None)[0].to_list()
+            self.missing_songs = (
+                pd.read_csv("missing.csv", header=None)
+                .drop_duplicates()[0]
+                .to_list()
+            )
         except OSError as error:
             print(error, "starting with empty list")
             self.missing_songs = []
-        self.missing_songs = self.missing_songs[int(len(self.missing_songs)/20):]
-        self.songs = self.all_songs[
-            ~(self.all_songs.index.isin(self.missing_songs))
-        ]
 
     def save_file(self, fname=""):
         if fname == "":
