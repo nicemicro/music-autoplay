@@ -479,7 +479,7 @@ class DataBases:
                     )
                     choose_from["Point"] = choose_from["Played"]
                     choose_from["Place"] = range(1, 1 + len(choose_from))
-                    choose_from["Last"] = np.NaN
+                    choose_from["Last"] = np.nan
                     choose_from = e.remove_played(choose_from, self.playlist)
                 elif (index == -1 or (
                         index in self.playlist.index and
@@ -498,7 +498,7 @@ class DataBases:
                         group_song=group
                     )
                     choose_from = e.remove_played(choose_from, self.playlist)
-                    choose_from["Last"] = np.NaN
+                    choose_from["Last"] = np.nan
                 else:
                     if index not in self.sugg_cache:
                         print(f"      >> Generating list for {index}")
@@ -705,7 +705,7 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, datetime.utcnow(), np.NaN, np.NaN, "Man"]],
+            [[artist, album, title, datetime.utcnow(), np.nan, np.nan, "Man"]],
             columns=[
                 "Artist", "Album", "Title", "Time added", "Place", "Trial", "Method"
             ],

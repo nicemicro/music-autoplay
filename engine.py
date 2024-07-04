@@ -629,7 +629,7 @@ def cumul_similar(
     for song in latests.index:
         artist = latests.at[song, "Artist"]
         album = latests.at[song, "Album"]
-        if album == np.NaN:
+        if album == np.nan:
             album = ""
         title = latests.at[song, "Title"]
         processes[song] = mp.Process(
@@ -964,8 +964,8 @@ def delete_song(playlist: pd.DataFrame, first: int, last: int = 0) -> pd.DataFra
         last = max(first, last)
     playlist = pd.concat([playlist[0:first], playlist[last + 1 :]])
     if last + 1 in playlist.index:
-        playlist.at[last + 1, "Place"] = np.NaN
-        playlist.at[last + 1, "Last"] = np.NaN
+        playlist.at[last + 1, "Place"] = np.nan
+        playlist.at[last + 1, "Last"] = np.nan
     return playlist.reset_index(drop=True)
 
 
@@ -975,14 +975,14 @@ def move_song(playlist: pd.DataFrame, song: int, place: int = 0) -> pd.DataFrame
     song = min(song, playlist.index.max())
     place = max(place, -1)
     place = min(place, playlist.index.max())
-    playlist.at[song, "Place"] = np.NaN
-    playlist.at[song, "Last"] = np.NaN
+    playlist.at[song, "Place"] = np.nan
+    playlist.at[song, "Last"] = np.nan
     if song + 1 in playlist.index:
-        playlist.at[song + 1, "Place"] = np.NaN
-        playlist.at[song + 1, "Last"] = np.NaN
+        playlist.at[song + 1, "Place"] = np.nan
+        playlist.at[song + 1, "Last"] = np.nan
     if place + 1 in playlist.index:
-        playlist.at[place + 1, "Place"] = np.NaN
-        playlist.at[place + 1, "Last"] = np.NaN
+        playlist.at[place + 1, "Place"] = np.nan
+        playlist.at[place + 1, "Last"] = np.nan
     if place < song:
         playlist = pd.concat(
             [
@@ -1229,7 +1229,7 @@ def unique(playlist):
     playlist2["artist_low"] = playlist2["Artist"].str.lower()
     playlist2["title_low"] = playlist2["Title"].str.lower()
     return len(
-        playlist2.groupby(["artist_low", "title_low"], axis=0).
+        playlist2.groupby(["artist_low", "title_low"]).
         agg({"Time added": "count"}).index
     )
 
@@ -1300,8 +1300,8 @@ def load_data(
         filename + "_songlist.csv",
         sep=",",
         header=0,
-        parse_dates=["Time added"],
     )
+    songlist["Time added"] = pd.to_datetime(songlist["Time added"], format="mixed")
     songlist["Album"] = songlist["Album"].fillna("")
     songs = pd.read_csv(
         filename + "_songs.csv",
