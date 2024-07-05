@@ -1300,6 +1300,7 @@ def load_data(
         filename + "_songlist.csv",
         sep=",",
         header=0,
+        parse_dates=["Time added"]
     )
     songlist["Time added"] = pd.to_datetime(songlist["Time added"], format="mixed")
     songlist["Album"] = songlist["Album"].fillna("")
