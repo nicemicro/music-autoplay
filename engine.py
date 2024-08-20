@@ -209,7 +209,7 @@ def find_similar_id(
         result = pd.DataFrame(
             [], columns=["song_id", "Played last", "Point", "Place"]
         ).set_index("song_id")
-        result["Played last"] = result["Played last"].astype("datetime64")
+        result["Played last"] = result["Played last"].astype("datetime64[ms]")
         return result
     if points is None:
         points = [10, 5, 2, 1, 1]
@@ -674,7 +674,7 @@ def cumul_similar(
                 columns=["song_id", f"L{song}", f"P{song}", f"O{song}"]
             ).set_index("song_id")
             all_similars[song][f"L{song}"] = (
-                all_similars[song][f"L{song}"].astype("datetime64")
+                all_similars[song][f"L{song}"].astype("datetime64[ms]")
             )
     for proc in processes.values():
         proc.join()
@@ -1021,8 +1021,7 @@ def remove_played(
         on=["artist_l", "title_l"],
         how="left"
     )
-    result["exists"] = result["exists"].fillna(False)
-    result = result[~(result["exists"])]
+    result = result[(result["exists"]).isna()]
     return list_to_handle[(list_to_handle.index.isin(result["id"]))]
 
 

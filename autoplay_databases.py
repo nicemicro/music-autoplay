@@ -705,10 +705,8 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, datetime.utcnow(), np.nan, np.nan, "Man"]],
-            columns=[
-                "Artist", "Album", "Title", "Time added", "Place", "Trial", "Method"
-            ],
+            [[artist, album, title, datetime.utcnow(), "Man"]],
+            columns=["Artist", "Album", "Title", "Time added", "Method"],
             index=[index]
         )
         self.playlist = pd.concat([self.playlist, new_line])

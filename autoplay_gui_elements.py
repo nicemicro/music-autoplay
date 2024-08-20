@@ -288,6 +288,7 @@ class Not_played(ttk.Frame):
                 self.songlistbox.delete(element)
         newlist["display"] = newlist["artist"] + " - " + newlist["title"]
         for colname in ["album", "Played last", "Added first"]:
+            newlist[colname] = newlist[colname].astype(str)
             mask = (newlist[colname].isnull())
             newlist.loc[mask, colname] = "-"
         mask = (newlist["Played"].isnull())
@@ -423,9 +424,11 @@ class Search(ttk.Frame):
             .astype("string") + ". "
         )
         for colname in ["album", "Played last", "Added first"]:
+            newlist[colname] = newlist[colname].astype(str)
             mask = ((newlist[colname].isnull()) | (newlist[colname] == ""))
             newlist.loc[mask, colname] = "-"
         for colname in ["genre", "date", "track"]:
+            newlist[colname] = newlist[colname].astype(str)
             mask = ((newlist[colname].isnull()) | (newlist[colname] == "-1"))
             newlist.loc[mask, colname] = ""
         mask = (newlist["Played"].isnull())

@@ -80,6 +80,7 @@ def matrix_songs(points: pd.DataFrame) -> pd.DataFrame:
     return matrix
 
 def find_max_matrix(matrix: pd.DataFrame) -> tuple[str, str]:
+    matrix = matrix.fillna(0)
     row = matrix.idxmax()[matrix.max().idxmax()]
     column = matrix.max().idxmax()
     return (str(row), str(column))
