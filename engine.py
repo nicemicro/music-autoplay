@@ -478,7 +478,7 @@ def generate_list(
         cache = Cache()
     if artist != "" and title != "":
         new_line = pd.DataFrame(
-            [[artist, album, title, datetime.datetime.utcnow()]],
+            [[artist, album, title, pd.Timestamp.now(tz=datetime.UTC)]],
             columns=["Artist", "Album", "Title", "Time added"],
         )
         playlist = pd.concat([playlist, new_line], ignore_index=True, sort=False)
@@ -522,7 +522,7 @@ def generate_list(
                 [
                     playlist,
                     pd.DataFrame(
-                        [[datetime.datetime.utcnow()]], columns=["Played"]
+                        [[pd.Timestamp.now(tz=datetime.UTC)]], columns=["Played"]
                     ).join(
                         search_in[song_place : song_place + 1][
                             ["Artist", "Album", "Title"]
@@ -560,7 +560,7 @@ def generate_list(
                 remove_played(similars, playlist), artist, *kwargs
             )
             similars["Trial"] = trial_num
-            similars["Time added"] = datetime.datetime.utcnow()
+            similars["Time added"] = pd.Timestamp.now(tz=datetime.UTC)
             playlist = pd.concat([
                 playlist,
                 similars.loc[
@@ -730,9 +730,9 @@ def generate_hourly_song(
     hour: int = -1
 ) -> pd.DataFrame:
     if hour < 0 or hour > 23:
-        hour = datetime.datetime.utcnow().hour
+        hour = pd.Timestamp.now(tz=datetime.UTC).hour
     if day_of_week < 0 or day_of_week > 6:
-        day_of_week = datetime.datetime.utcnow().weekday()
+        day_of_week = pd.Timestamp.now(tz=datetime.UTC).weekday()
     hours: list[int] = [
         (hour - 1) % 24,
         hour,
@@ -764,7 +764,7 @@ def generate_hourly_song(
     hourly_songs["Hour point"] = (
         hourly_songs["Hour point"] /
         np.square(
-            (datetime.datetime.utcnow() - hourly_songs["Time added"])
+            (pd.Timestamp.now(tz=datetime.UTC) - hourly_songs["Time added"])
             .dt.days // 365 + 1
         )
     )
@@ -1242,9 +1242,18 @@ def save_data(
     """
     Saves the songlist and the playlist in a pickle file.
     """
-    songlist.to_csv(filename + "_songlist.csv", index=False, header=True)
-    songs.sort_index().to_csv(filename + "_songs.csv", index=True, header=True)
-    playlist.to_csv(filename + "_playlist.csv", index=False, header=True)
+    songlist_tosave = songlist.copy()
+    songs_tosave = songs.copy()
+    playlist_tosave = playlist.copy()
+    songlist_tosave["Time added"] = songlist["Time added"].dt.tz_localize(None)
+    playlist_tosave["Time added"] = playlist["Time added"].dt.tz_localize(None)
+    songs_tosave["Played last"] = songs["Played last"].dt.tz_localize(None)
+    songs_tosave["Added first"] = songs["Added first"].dt.tz_localize(None)
+    songlist_tosave.to_csv(filename + "_songlist.csv", index=False, header=True)
+    songs_tosave.sort_index().to_csv(
+        filename + "_songs.csv", index=True, header=True
+    )
+    playlist_tosave.to_csv(filename + "_playlist.csv", index=False, header=True)
 
 
 def revise_summarized_list(
@@ -1302,6 +1311,7 @@ def load_data(
         parse_dates=["Time added"]
     )
     songlist["Time added"] = pd.to_datetime(songlist["Time added"], format="mixed")
+    songlist["Time added"] = songlist["Time added"].dt.tz_localize("UTC")
     songlist["Album"] = songlist["Album"].fillna("")
     songs = pd.read_csv(
         filename + "_songs.csv",
@@ -1323,18 +1333,23 @@ def load_data(
         parse_dates=["Time added"],
         dtype={"Place": "Int16", "Trial": "Int16", "Last": "Int16"}
     )
-    now = datetime.datetime.utcnow()
+    playlist_old["Time added"] = playlist_old["Time added"].dt.tz_localize("UTC")
+    now = pd.Timestamp.now(tz=datetime.UTC)
     playlist = songlist[(
         songlist["Time added"] >
         now - datetime.timedelta(days=21)
     )]
     playlist = playlist.sort_values(by="Time added").reset_index(drop=True)
     playlist["Secs"] = (
-        (playlist["Time added"] - pd.Timestamp("1970-01-01")).dt.total_seconds()
+        (
+            playlist["Time added"] - pd.Timestamp("1970-01-01", tz=datetime.UTC)
+        ).dt.total_seconds()
     )
     playlist_old["Secs"] = (
-        (playlist_old["Time added"] - pd.Timestamp("1970-01-01"))
-        .dt.total_seconds()
+        (
+            playlist_old["Time added"] -
+            pd.Timestamp("1970-01-01", tz=datetime.UTC)
+        ).dt.total_seconds()
     )
     playlist = pd.merge(
         playlist,

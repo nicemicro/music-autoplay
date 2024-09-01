@@ -6,8 +6,8 @@ Created on Sun Oct  3 20:35:00 2021
 @author: nicemicro
 """
 
-from datetime import datetime
 from typing import Union, Optional
+import datetime
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -369,7 +369,7 @@ class DataBases:
             self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
             self.playlist
         )
-        now = datetime.utcnow()
+        now = pd.Timestamp.now(tz=datetime.UTC)
         if group != -1 and group % 100 != 0:
             songs = songs[(songs["Group"] == group)]
         elif group != -1:
@@ -430,9 +430,10 @@ class DataBases:
             self.ignore_songs[currentindex] = []
         artist: str = ""
         avoid_artist: str = ""
+        now = pd.Timestamp.now(tz=datetime.UTC)
         if (
             not self.playlist.empty and (
-                datetime.utcnow() - self.playlist.loc[last_index, "Time added"] <
+                now - self.playlist.loc[last_index, "Time added"] <
                 pd.Timedelta(minutes=30)
             )
         ):
@@ -458,14 +459,14 @@ class DataBases:
         ):
             if len(recentgroups) == 1:
                 recentgroup = recentgroups.index[0]
-                rand = datetime.utcnow().microsecond % 100
+                rand = now.microsecond % 100
             else:
                 biggroups = (
                     pd.DataFrame(recentgroups.index // 100 * 100)["Group"].unique()
                 )
                 if len(biggroups) == 1:
                     recentgroup = biggroups[0]
-                    rand = datetime.utcnow().microsecond % 100
+                    rand = now.microsecond % 100
         while song.empty:
             if choose_from.empty:
                 if index <= -3:
@@ -483,7 +484,7 @@ class DataBases:
                     choose_from = e.remove_played(choose_from, self.playlist)
                 elif (index == -1 or (
                         index in self.playlist.index and
-                        datetime.utcnow() -
+                        now -
                         self.playlist.loc[index, "Time added"] >
                         pd.Timedelta(minutes=30)
                     )
@@ -598,7 +599,7 @@ class DataBases:
             {0: last_index+1},
             axis="index"
         )
-        newline["Time added"] = datetime.utcnow()
+        newline["Time added"] = now
         self.playlist = pd.concat([self.playlist, newline])
         return song
 
@@ -655,7 +656,7 @@ class DataBases:
             (self.songlist.at[0, "Title"].lower() == title.lower())
         ):
             return
-        time_now = datetime.utcnow()
+        time_now = pd.Timestamp.now(tz=datetime.UTC)
         new_line = pd.DataFrame([[artist, album, title, time_now]],
                                 columns=["Artist", "Album", "Title",
                                          "Time added"])
@@ -665,7 +666,7 @@ class DataBases:
             if index not in self.playlist.index:
                 continue
             self.playlist.at[index, "Time added"] = time_now
-            time_now = datetime.utcnow()
+            time_now = pd.Timestamp.now(tz=datetime.UTC)
             index += 1
         self.save_file()
     
@@ -679,7 +680,7 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, datetime.utcnow()]],
+            [[artist, album, title, pd.Timestamp.now(tz=datetime.UTC)]],
             columns=["Artist", "Album", "Title", "Time added"],
             index=[index]
         )
@@ -705,7 +706,7 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, datetime.utcnow(), "Man"]],
+            [[artist, album, title, pd.Timestamp.now(tz=datetime.UTC), "Man"]],
             columns=["Artist", "Album", "Title", "Time added", "Method"],
             index=[index]
         )

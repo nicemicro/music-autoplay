@@ -9,6 +9,7 @@ Created on Tue Sep 14 23:33:44 2021
 import tkinter as tk
 from tkinter import ttk
 import pandas as pd
+import datetime
 
 class Player(ttk.Frame):
     def __init__(self, parent, controller, playlist):
@@ -254,7 +255,6 @@ class Not_played(ttk.Frame):
         for button in self.generate_buttons.values():
             button.state(["disabled"])
         self.fwd_button.state(["disabled"])
-    
 
     def prev_page(self):
         self.start_loading()
@@ -287,7 +287,16 @@ class Not_played(ttk.Frame):
             for element in elements:
                 self.songlistbox.delete(element)
         newlist["display"] = newlist["artist"] + " - " + newlist["title"]
-        for colname in ["album", "Played last", "Added first"]:
+        timezone = datetime.datetime.now(datetime.UTC).astimezone().tzinfo
+        newlist["play_last_tz"] = (
+            newlist["Played last"].dt.tz_convert(timezone)
+            .dt.tz_localize(None)
+        )
+        newlist["add_first_tz"] = (
+            newlist["Added first"].dt.tz_convert(timezone)
+            .dt.tz_localize(None)
+        )
+        for colname in ["album", "play_last_tz", "add_first_tz"]:
             newlist[colname] = newlist[colname].astype(str)
             mask = (newlist[colname].isnull())
             newlist.loc[mask, colname] = "-"
@@ -304,8 +313,8 @@ class Not_played(ttk.Frame):
                 values=(
                     songinfo["album"],
                     int(songinfo["Played"]),
-                    str(songinfo["Played last"]).split(".")[0],
-                    str(songinfo["Added first"]).split(".")[0]
+                    str(songinfo["play_last_tz"]).split(".")[0],
+                    str(songinfo["add_first_tz"]).split(".")[0]
                 )
             )
             index += 1
@@ -412,24 +421,32 @@ class Search(ttk.Frame):
         for colname in ["track", "album", "date", "genre"]:
             if colname not in newlist.columns:
                 newlist[colname] = ""
-        newlist["trackstr"] = ""
-        newlist.loc[
-            ((newlist["track"].notna()) & (newlist["track"] != "")),
-            "trackstr"
-        ] = (
-            newlist.loc[
-                ((newlist["track"].notna()) & (newlist["track"] != "")),
-                "track"
-            ]
-            .astype("string") + ". "
+        timezone = datetime.datetime.now(datetime.UTC).astimezone().tzinfo
+        newlist["play_last_tz"] = (
+            newlist["Played last"].dt.tz_convert(timezone)
+            .dt.tz_localize(None)
         )
-        for colname in ["album", "Played last", "Added first"]:
+        newlist["add_first_tz"] = (
+            newlist["Added first"].dt.tz_convert(timezone)
+            .dt.tz_localize(None)
+        )
+        for colname in ["album", "play_last_tz", "add_first_tz"]:
             newlist[colname] = newlist[colname].astype(str)
-            mask = ((newlist[colname].isnull()) | (newlist[colname] == ""))
+            mask = (
+                (newlist[colname].isnull()) |
+                (newlist[colname] == "") |
+                (newlist[colname] == "NaT")
+            )
             newlist.loc[mask, colname] = "-"
         for colname in ["genre", "date", "track"]:
             newlist[colname] = newlist[colname].astype(str)
-            mask = ((newlist[colname].isnull()) | (newlist[colname] == "-1"))
+            mask = (
+                (newlist[colname].isnull()) |
+                (newlist[colname] == "-1") |
+                (newlist[colname] == "nan")
+            )
+            if colname == "track":
+                newlist[colname] = newlist[colname] + ". "
             newlist.loc[mask, colname] = ""
         mask = (newlist["Played"].isnull())
         newlist.loc[mask, "Played"] = 0
@@ -472,13 +489,13 @@ class Search(ttk.Frame):
                 "end",
                 iid=s_ind,
                 text=(
-                    newlist.at[s_ind, "trackstr"] + newlist.at[s_ind, "title"]
+                    newlist.at[s_ind, "track"] + newlist.at[s_ind, "title"]
                 ),
                 values=(
                     newlist.at[s_ind, "genre"],
                     int(newlist.at[s_ind, "Played"]),
-                    str(newlist.at[s_ind, "Played last"]).split(".")[0],
-                    str(newlist.at[s_ind, "Added first"]).split(".")[0]
+                    str(newlist.at[s_ind, "play_last_tz"]).split(".")[0],
+                    str(newlist.at[s_ind, "add_first_tz"]).split(".")[0]
                 )
             )
     
