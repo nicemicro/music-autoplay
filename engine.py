@@ -478,7 +478,7 @@ def generate_list(
         cache = Cache()
     if artist != "" and title != "":
         new_line = pd.DataFrame(
-            [[artist, album, title, pd.Timestamp.now(tz=datetime.UTC)]],
+            [[artist, album, title, pd.Timestamp.now(tz=datetime.timezone.utc)]],
             columns=["Artist", "Album", "Title", "Time added"],
         )
         playlist = pd.concat([playlist, new_line], ignore_index=True, sort=False)
@@ -522,7 +522,7 @@ def generate_list(
                 [
                     playlist,
                     pd.DataFrame(
-                        [[pd.Timestamp.now(tz=datetime.UTC)]], columns=["Played"]
+                        [[pd.Timestamp.now(tz=datetime.timezone.utc)]], columns=["Played"]
                     ).join(
                         search_in[song_place : song_place + 1][
                             ["Artist", "Album", "Title"]
@@ -560,7 +560,7 @@ def generate_list(
                 remove_played(similars, playlist), artist, *kwargs
             )
             similars["Trial"] = trial_num
-            similars["Time added"] = pd.Timestamp.now(tz=datetime.UTC)
+            similars["Time added"] = pd.Timestamp.now(tz=datetime.timezone.utc)
             playlist = pd.concat([
                 playlist,
                 similars.loc[
@@ -730,9 +730,9 @@ def generate_hourly_song(
     hour: int = -1
 ) -> pd.DataFrame:
     if hour < 0 or hour > 23:
-        hour = pd.Timestamp.now(tz=datetime.UTC).hour
+        hour = pd.Timestamp.now(tz=datetime.timezone.utc).hour
     if day_of_week < 0 or day_of_week > 6:
-        day_of_week = pd.Timestamp.now(tz=datetime.UTC).weekday()
+        day_of_week = pd.Timestamp.now(tz=datetime.timezone.utc).weekday()
     hours: list[int] = [
         (hour - 1) % 24,
         hour,
@@ -764,7 +764,7 @@ def generate_hourly_song(
     hourly_songs["Hour point"] = (
         hourly_songs["Hour point"] /
         np.square(
-            (pd.Timestamp.now(tz=datetime.UTC) - hourly_songs["Time added"])
+            (pd.Timestamp.now(tz=datetime.timezone.utc) - hourly_songs["Time added"])
             .dt.days // 365 + 1
         )
     )
@@ -1334,7 +1334,7 @@ def load_data(
         dtype={"Place": "Int16", "Trial": "Int16", "Last": "Int16"}
     )
     playlist_old["Time added"] = playlist_old["Time added"].dt.tz_localize("UTC")
-    now = pd.Timestamp.now(tz=datetime.UTC)
+    now = pd.Timestamp.now(tz=datetime.timezone.utc)
     playlist = songlist[(
         songlist["Time added"] >
         now - datetime.timedelta(days=21)
@@ -1342,13 +1342,13 @@ def load_data(
     playlist = playlist.sort_values(by="Time added").reset_index(drop=True)
     playlist["Secs"] = (
         (
-            playlist["Time added"] - pd.Timestamp("1970-01-01", tz=datetime.UTC)
+            playlist["Time added"] - pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
         ).dt.total_seconds()
     )
     playlist_old["Secs"] = (
         (
             playlist_old["Time added"] -
-            pd.Timestamp("1970-01-01", tz=datetime.UTC)
+            pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
         ).dt.total_seconds()
     )
     playlist = pd.merge(

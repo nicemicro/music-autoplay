@@ -369,7 +369,7 @@ class DataBases:
             self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
             self.playlist
         )
-        now = pd.Timestamp.now(tz=datetime.UTC)
+        now = pd.Timestamp.now(tz=datetime.timezone.utc)
         if group != -1 and group % 100 != 0:
             songs = songs[(songs["Group"] == group)]
         elif group != -1:
@@ -430,7 +430,7 @@ class DataBases:
             self.ignore_songs[currentindex] = []
         artist: str = ""
         avoid_artist: str = ""
-        now = pd.Timestamp.now(tz=datetime.UTC)
+        now = pd.Timestamp.now(tz=datetime.timezone.utc)
         if (
             not self.playlist.empty and (
                 now - self.playlist.loc[last_index, "Time added"] <
@@ -656,7 +656,7 @@ class DataBases:
             (self.songlist.at[0, "Title"].lower() == title.lower())
         ):
             return
-        time_now = pd.Timestamp.now(tz=datetime.UTC)
+        time_now = pd.Timestamp.now(tz=datetime.timezone.utc)
         new_line = pd.DataFrame([[artist, album, title, time_now]],
                                 columns=["Artist", "Album", "Title",
                                          "Time added"])
@@ -666,7 +666,7 @@ class DataBases:
             if index not in self.playlist.index:
                 continue
             self.playlist.at[index, "Time added"] = time_now
-            time_now = pd.Timestamp.now(tz=datetime.UTC)
+            time_now = pd.Timestamp.now(tz=datetime.timezone.utc)
             index += 1
         self.save_file()
     
@@ -680,7 +680,7 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, pd.Timestamp.now(tz=datetime.UTC)]],
+            [[artist, album, title, pd.Timestamp.now(tz=datetime.timezone.utc)]],
             columns=["Artist", "Album", "Title", "Time added"],
             index=[index]
         )
@@ -706,7 +706,7 @@ class DataBases:
         else:
             index = max(self.playlist.index)+1
         new_line = pd.DataFrame(
-            [[artist, album, title, pd.Timestamp.now(tz=datetime.UTC), "Man"]],
+            [[artist, album, title, pd.Timestamp.now(tz=datetime.timezone.utc), "Man"]],
             columns=["Artist", "Album", "Title", "Time added", "Method"],
             index=[index]
         )

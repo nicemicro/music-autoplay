@@ -287,7 +287,7 @@ class Not_played(ttk.Frame):
             for element in elements:
                 self.songlistbox.delete(element)
         newlist["display"] = newlist["artist"] + " - " + newlist["title"]
-        timezone = datetime.datetime.now(datetime.UTC).astimezone().tzinfo
+        timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
         newlist["play_last_tz"] = (
             newlist["Played last"].dt.tz_convert(timezone)
             .dt.tz_localize(None)
@@ -421,7 +421,7 @@ class Search(ttk.Frame):
         for colname in ["track", "album", "date", "genre"]:
             if colname not in newlist.columns:
                 newlist[colname] = ""
-        timezone = datetime.datetime.now(datetime.UTC).astimezone().tzinfo
+        timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
         newlist["play_last_tz"] = (
             newlist["Played last"].dt.tz_convert(timezone)
             .dt.tz_localize(None)
