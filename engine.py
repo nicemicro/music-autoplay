@@ -643,6 +643,7 @@ def cumul_similar(
                 songs,
                 similarities,
                 timeframe,
+                False,
             ),
         )
         processes[song].start()
@@ -846,9 +847,12 @@ def similars_parallel(
     songs: Optional[pd.DataFrame] = None,
     similarities: Optional[pd.DataFrame] = None,
     timeframe: int = 30,
+    enforce_album: bool = True
 ) -> None:
     """Looks for similar songs using parallel computations"""
     song_id: list[int] = get_song_id(songs, artist, title, album)
+    if len(song_id) == 0 and not enforce_album:
+        song_id = get_song_id(songs, artist, title, "")
     result = find_similar_id(
         songs, song_id, timeframe, similarities=similarities
     )

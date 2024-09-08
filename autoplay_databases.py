@@ -328,6 +328,16 @@ class DataBases:
                 right_index=True,
                 how="outer"
             )
+            suggestion["Played last_x"] = (
+                suggestion["Played last_x"].fillna(
+                    pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
+                )
+            )
+            suggestion["Played last_y"] = (
+                suggestion["Played last_y"].fillna(
+                    pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
+                )
+            )
             suggestion["Point"] = (
                 suggestion["Point_x"].fillna(0) * (0.5 + plays/30) +
                 suggestion["Point_y"].fillna(0) * (0.5 - plays/30)
