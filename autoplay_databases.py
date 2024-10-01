@@ -819,10 +819,14 @@ class DataBases:
             self.all_songs, indexlist=self.indexlist
         )
         try:
-            self.missing_songs = (
+            self.missing_songs_pd = (
                 pd.read_csv("missing.csv", header=None)
                 .drop_duplicates()[0]
-                .to_list()
+            )
+            self.missing_songs = (
+                self.missing_songs_pd[
+                    (self.missing_songs_pd.isin(self.all_songs.index))
+                ].to_list()
             )
         except OSError as error:
             print(error, "starting with empty list")

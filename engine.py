@@ -693,6 +693,12 @@ def cumul_similar(
             left_index=True,
             right_index=True
         )
+        result["Played last"] = result["Played last"].fillna(
+            pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
+        )
+        result[f"L{song}"] = result[f"L{song}"].fillna(
+            pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
+        )
         result["Played last"] = result[["Played last", f"L{song}"]].max(axis=1)
     for i in latests.index:
         #result.loc[result[f"P{i}"].isnull(), f"P{i}"] = 0
