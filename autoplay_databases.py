@@ -454,19 +454,7 @@ class DataBases:
         recentgroups = e.list_group_count(self.playlist[-5:], self.all_songs)
         recentgroup: int = -1
         rand: int = 99
-        if (
-            recentgroups["Time added"].sum() == 5 and not (
-                len(self.playlist) >= 2 and
-                (
-                    self.playlist["Artist"].values[-1] ==
-                    self.playlist["Artist"].values[-2]
-                ) and
-                (
-                    self.playlist["Album"].values[-1] ==
-                    self.playlist["Album"].values[-2]
-                )
-            )
-        ):
+        if recentgroups["Time added"].sum() == 5:
             if len(recentgroups) == 1:
                 recentgroup = recentgroups.index[0]
                 rand = now.microsecond % 100
@@ -478,6 +466,7 @@ class DataBases:
                     recentgroup = biggroups[0]
                     rand = now.microsecond % 100
         while song.empty:
+            very_likely_first: bool = False
             if choose_from.empty:
                 if index <= -3:
                     break
@@ -491,7 +480,6 @@ class DataBases:
                     choose_from["Point"] = choose_from["Played"]
                     choose_from["Place"] = range(1, 1 + len(choose_from))
                     choose_from["Last"] = np.nan
-                    choose_from = e.remove_played(choose_from, self.playlist)
                 elif (index == -1 or (
                         index in self.playlist.index and
                         now -
@@ -508,16 +496,30 @@ class DataBases:
                         ],
                         group_song=group
                     )
-                    choose_from = e.remove_played(choose_from, self.playlist)
                     choose_from["Last"] = np.nan
                 else:
                     if index not in self.sugg_cache:
                         print(f"      >> Generating list for {index}")
                         self.sugg_cache[index] = self.generate_suggestion(index)
-                    choose_from = e.remove_played(
-                        self.sugg_cache[index], self.playlist
+                    very_likely_first = (
+                        len(self.sugg_cache[index]) > 0 and
+                        self.sugg_cache[index].iloc[0]["Point"] /
+                        self.sugg_cache[index]["Point"].sum() > 0.25 and
+                        self.sugg_cache[index].index[0]
+                        not in self.ignore_songs[currentindex]
                     )
-                    if group == -1 and recentgroup != -1 and rand < 10:
+                    #print(
+                    #    f"very_likely_first: {very_likely_first} ",
+                    #    self.sugg_cache[index].iloc[0]["Point"] /
+                    #    self.sugg_cache[index]["Point"].sum()*100,
+                    #    self.sugg_cache[index].index[0]
+                    #    not in self.ignore_songs[currentindex]
+                    #)
+                    choose_from = self.sugg_cache[index]
+                    if (
+                        not very_likely_first and
+                        group == -1 and recentgroup != -1 and rand < 10
+                    ):
                         print(f"Generating rarely played of group {recentgroup}")
                         rarely_played = self.get_rarely_played(
                             recentgroup, min(rand, 3)
@@ -526,7 +528,10 @@ class DataBases:
                             pd.concat([rarely_played, choose_from])
                             .sort_values("Point", ascending=False)
                         )
-                    elif group == -1 and recentgroup != -1 and rand < 20:
+                    elif (
+                        not very_likely_first and
+                        group == -1 and recentgroup != -1 and rand < 20
+                    ):
                         print(f"Enhancing non-group members of {recentgroup}")
                         if recentgroup % 100 == 0:
                             where = (
@@ -544,6 +549,16 @@ class DataBases:
                 choose_from = (
                     choose_from[~(choose_from.index.duplicated(keep="first"))]
                 )
+                if very_likely_first and len(choose_from) > 1:
+                    choose_from = pd.concat(
+                        [
+                            choose_from.iloc[0:1],
+                            e.remove_played(choose_from.iloc[1:], self.playlist)
+                        ]
+                    )
+                    #choose_from.to_csv("test.csv")
+                else:
+                    choose_from = e.remove_played(choose_from, self.playlist)
                 choose_from = choose_from.iloc[
                     0:min(len(choose_from), max(25, int(len(choose_from)/3)))
                 ]
@@ -567,7 +582,7 @@ class DataBases:
                 if index > 0:
                     index = 0
                 index -= 1
-            song_index, trial = e.choose_song(choose_from, avoid_artist)
+            song_index, trial = e.choose_song(choose_from, avoid_artist, trials=(1-very_likely_first)*15)
             if song_index == -1:
                 print("Nothing has been found... trying again")
                 continue
@@ -754,9 +769,10 @@ class DataBases:
         for todel in dellist:
             if todel in self.ignore_songs:
                 self.ignore_songs.pop(todel)
-            if todel not in self.sugg_cache.keys():
-                continue
-            self.sugg_cache.pop(todel)
+        delsuggkeys: list = list(self.sugg_cache.keys())
+        for todel in delsuggkeys:
+            if todel >= dellist[0]:
+                self.sugg_cache.pop(todel)
         self.playlist = self.playlist.drop(dellist)
         if delfrom == 0:
             if (
