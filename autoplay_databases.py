@@ -813,7 +813,10 @@ class DataBases:
             fname = "data"
         self.songlist, saved_songs, self.playlist = e.load_data(fname)
         self.all_songs = e.summarize_songlist(self.songlist)
-        self.all_songs = e.revise_summarized_list(saved_songs, self.all_songs)
+        if len(saved_songs) > 0:
+            self.all_songs = e.revise_summarized_list(saved_songs, self.all_songs)
+        else:
+            self.all_songs["Group"] = np.nan
         self.indexlist = e.make_indexlist(self.songlist, self.all_songs)
         self.similarities = e.summarize_similars(
             self.all_songs, indexlist=self.indexlist
