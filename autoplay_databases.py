@@ -72,15 +72,18 @@ class DataBases:
         artist = artist.replace("\"", "")
         album = album.replace("\"", "")
         title = title.replace("\"", "")
+        artist_s = artist.replace(":", " ")
+        album_s = album.replace(":", " ")
+        title_s = title.replace(":", " ")
         s_strings = []
         ids: list[int]
 
-        for word in [w for w in title.split(" ") if len(w) > 2]:
+        for word in [w for w in title_s.split(" ") if len(w) > 2]:
             s_strings.append("title")
-            s_strings.append(word.replace(":", ""))
-        for word in [w for w in artist.split(" ") if len(w) > 2]:
+            s_strings.append(word)
+        for word in [w for w in artist_s.split(" ") if len(w) > 2]:
             s_strings.append("artist")
-            s_strings.append(word.replace(":", ""))
+            s_strings.append(word)
         if len(s_strings) == 0:
             return pd.DataFrame()
         s_strings2 = s_strings.copy()
@@ -88,9 +91,9 @@ class DataBases:
             s_strings = s_strings[0:30]
         if len(s_strings2) > 40:
             s_strings = s_strings[0:40]
-        for word in [w for w in album.split(" ") if len(w) > 2]:
+        for word in [w for w in album_s.split(" ") if len(w) > 2]:
             s_strings.append("album")
-            s_strings.append(word.replace(":", ""))
+            s_strings.append(word)
         if len(s_strings) > 40:
             s_strings = s_strings[0:40]
 
