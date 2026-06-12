@@ -178,19 +178,24 @@ def get_song_id(
     artist = artist.lower().replace(",", "").replace("\"", "")
     album = album.lower().replace(",", "").replace("\"", "")
     title = title.lower().replace(",", "").replace("\"", "")
-    songs = songs.copy().sort_values("Played", ascending=False)
+    songs_sorted = songs.copy()
+    songs_sorted = songs_sorted.sort_values(
+        "Played", ascending=False, kind="stable"
+    )
     song_matches: pd.DataFrame = (
-        (songs["artist_l"] == artist)
+        (songs_sorted["artist_l"] == artist)
     )
     if title != "":
-        song_matches = (song_matches) & (songs["title_l"] == title)
+        song_matches = (song_matches) & (songs_sorted["title_l"] == title)
     if album != "":
-        song_matches = (song_matches) & (songs["album_l"] == album)
+        song_matches = (song_matches) & (songs_sorted["album_l"] == album)
     if group != -1 and group % 100 == 0:
-        song_matches = (song_matches) & (songs["Group"] // 100 == group // 100)
+        song_matches = (
+            (song_matches) & (songs_sorted["Group"] // 100 == group // 100)
+        )
     if group != -1 and group % 100 != 0:
-        song_matches = (song_matches) & (songs["Group"] == group)
-    return list(songs[song_matches].index)
+        song_matches = (song_matches) & (songs_sorted["Group"] == group)
+    return list(songs_sorted[song_matches].index)
 
 
 def find_similar_id(

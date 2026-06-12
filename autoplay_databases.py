@@ -228,11 +228,11 @@ class DataBases:
     def check_missing_song(self, number: int):
         to_check: list[int] = self.missing_songs[:number]
         self.missing_songs = self.missing_songs[number:]
-        for id in to_check:
+        for idnum in to_check:
             self.search_song(
-                self.all_songs.at[id, "Artist"],
-                self.all_songs.at[id, "Album"],
-                self.all_songs.at[id, "Title"]
+                self.all_songs.at[idnum, "Artist"],
+                self.all_songs.at[idnum, "Album"],
+                self.all_songs.at[idnum, "Title"]
             )
 
     def list_songs_fwd(self, num: int):
@@ -431,11 +431,11 @@ class DataBases:
 
     def suggest_song(self, group: int = -1) -> pd.DataFrame:
         song = pd.DataFrame()
-        last_index = max(self.playlist.index)
+        last_index: int = max(self.playlist.index)
         print()
         print(f" -- Looking for similars after {last_index}, group {group}--")
         print(self.playlist[-5:])
-        index = last_index + 1
+        index: int = last_index + 1
         while index not in self.playlist.index and index >= 0:
             index -= 1
         currentindex: int = index
@@ -504,20 +504,29 @@ class DataBases:
                     if index not in self.sugg_cache:
                         print(f"      >> Generating list for {index}")
                         self.sugg_cache[index] = self.generate_suggestion(index)
-                    very_likely_first = (
-                        len(self.sugg_cache[index]) > 0 and
-                        self.sugg_cache[index].iloc[0]["Point"] /
-                        self.sugg_cache[index]["Point"].sum() > 0.25 and
-                        self.sugg_cache[index].index[0]
-                        not in self.ignore_songs[currentindex]
+                    song_id_list: list[int] = e.get_song_id(
+                        self.all_songs,
+                        self.playlist.at[index, "Artist"],
+                        self.playlist.at[index, "Title"],
+                        self.playlist.at[index, "Album"],
                     )
-                    #print(
-                    #    f"very_likely_first: {very_likely_first} ",
-                    #    self.sugg_cache[index].iloc[0]["Point"] /
-                    #    self.sugg_cache[index]["Point"].sum()*100,
-                    #    self.sugg_cache[index].index[0]
-                    #    not in self.ignore_songs[currentindex]
-                    #)
+                    if len(self.sugg_cache[index]) > 0 and len(song_id_list) == 1:
+                        songindex: int = song_id_list[0]
+                        very_likely_first = (
+                            self.all_songs.at[songindex, "Played"] > 15 and
+                            self.sugg_cache[index].iloc[0]["Point"] /
+                            self.sugg_cache[index]["Point"].sum() > 0.25 and
+                            self.sugg_cache[index].index[0]
+                            not in self.ignore_songs[currentindex]
+                        )
+                        print(
+                            self.all_songs.at[songindex, "Played"],
+                            self.sugg_cache[index].iloc[0]["Point"] /
+                            self.sugg_cache[index]["Point"].sum(),
+                            self.sugg_cache[index].index[0]
+                            not in self.ignore_songs[currentindex],
+                            "->", very_likely_first
+                        )
                     choose_from = self.sugg_cache[index]
                     if (
                         not very_likely_first and
