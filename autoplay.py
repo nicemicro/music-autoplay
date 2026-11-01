@@ -136,17 +136,6 @@ class AppContainer(tk.Tk):
             return
         self.frames["Search"].setlist(self.searchresult)
 
-    def search_artist(self, artist_string: str) -> None:
-        self.music_handler.search_artist(artist_string)
-        self.after(50, self.search_artist_fill)
-    
-    def search_artist_fill(self) -> None:
-        self.searchresult = self.music_handler.ret_search_artists()
-        if self.searchresult is None:
-            self.after(200, self.search_artist_fill)
-            return
-        self.frames["Search"].setlist(self.searchresult)
-    
     def add_found_song(self, playnow: bool, itemnum: int):
         assert self.searchresult is not None
         filedata = (str(self.searchresult.at[itemnum, "file"]),

@@ -14,7 +14,7 @@ from typing import Optional, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-
+import re
 
 class Cache():
     def __init__(self):
@@ -65,7 +65,9 @@ class Cache():
         )
         return length > 0
 
-    def return_from_cache(self, artist: str, album: str, title: str) -> pd.DataFrame:
+    def return_from_cache(
+        self, artist: str, album: str, title: str
+    ) -> pd.DataFrame:
         """Returns the list of similar songs from the cache for a specific song."""
         result = (
             self.cache.loc[(artist, album, title), :].
@@ -76,12 +78,27 @@ class Cache():
         return result[(result["Place"].notna())]
 
 
+def clean_string(song_string: Optional[str]) -> str:
+    s_orig: str = song_string.lower() if song_string is not None else ""
+    clean: str = re.sub(r'([^\w\s]|_)+', ' ', s_orig)
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    if clean == "":
+        return s_orig
+    return clean
+
+
+def clean_series(song_col: pd.Series) -> pd.Series:
+    orig: pd.Series = song_col.fillna("").str.lower()
+    clean: pd.Series = orig.str.replace(r'([^\w\s]|_)+', ' ', regex=True)
+    clean = clean.str.replace(r'\s+', ' ', regex=True).str.strip()
+    return clean.where(clean.ne(""), orig)
+
+
 def make_indexlist(songlist: pd.DataFrame, songs: pd.DataFrame) -> pd.DataFrame:
     songlist = songlist.copy(deep=False)
     songs = songs.copy(deep=False).reset_index(drop=False)
-    songlist["artist_l"] = songlist["Artist"].str.lower()
-    songlist["title_l"] = songlist["Title"].str.lower()
-    songlist["album_l"] = songlist["Album"].fillna("").str.lower()
+    for col in ["Artist", "Title", "Album"]:
+        songlist[col.lower() + "_l"] = clean_series(songlist[col])
     indexlist: pd.Dataframe = (
         pd.merge(
             songlist,
@@ -175,9 +192,9 @@ def get_song_id(
     album: str = "",
     group: int = -1
 ) -> list[int]:
-    artist = artist.lower().replace(",", "").replace("\"", "")
-    album = album.lower().replace(",", "").replace("\"", "")
-    title = title.lower().replace(",", "").replace("\"", "")
+    artist = clean_string(artist)
+    album = clean_string(album)
+    title = clean_string(title)
     songs_sorted = songs.copy()
     songs_sorted = songs_sorted.sort_values(
         "Played", ascending=False, kind="stable"
@@ -214,7 +231,7 @@ def find_similar_id(
         result = pd.DataFrame(
             [], columns=["song_id", "Played last", "Point", "Place"]
         ).set_index("song_id")
-        result["Played last"] = result["Played last"].astype("datetime64[ms]")
+        #result["Played last"] = result["Played last"].astype("datetime64[ms]")
         return result
     if points is None:
         points = [10, 5, 2, 1, 1]
@@ -283,11 +300,11 @@ def find_similar(
         return pd.DataFrame()
     if points is None:
         points = [10, 5, 2, 1, 1]
-    artist = artist.lower()
-    title = title.lower()
+    artist = clean_string(artist)
+    title = clean_string(title)
     if pd.isnull(album) or album is None:
         album == ""
-    album = album.lower()
+    album = clean_string(album)
     if similarities is None:
         if songs is None:
             if songlist is None:
@@ -375,7 +392,7 @@ def choose_song(
     if isinstance(avoid_artist, str):
         avoid_artist = [avoid_artist]
     avoid: list[str] = [
-        artist.lower().replace(",", "").replace("\"", "") for
+        clean_string(artist) for
         artist in
         avoid_artist
     ]
@@ -393,8 +410,8 @@ def choose_song(
             song_place += 1
             point += similars["Point"].values[song_place]
         next_artist = (
-            similars["Artist"].values[song_place].
-            lower().replace(",", "").replace("\"", ""))
+            clean_string(similars["Artist"].values[song_place])
+        )
         ok_artist = next_artist not in avoid
         trial_num += 1
         percent += perc_inc
@@ -478,7 +495,7 @@ def generate_list(
             points=points,
             timeframe=timeframe
         )
-    assert(isinstance(songs, pd.DataFrame))
+    assert (isinstance(songs, pd.DataFrame))
     if cache is None:
         cache = Cache()
     if artist != "" and title != "":
@@ -527,9 +544,10 @@ def generate_list(
                 [
                     playlist,
                     pd.DataFrame(
-                        [[pd.Timestamp.now(tz=datetime.timezone.utc)]], columns=["Played"]
+                        [[pd.Timestamp.now(tz=datetime.timezone.utc)]],
+                        columns=["Played"]
                     ).join(
-                        search_in[song_place : song_place + 1][
+                        search_in[song_place:song_place + 1][
                             ["Artist", "Album", "Title"]
                         ].reset_index(drop=True)
                     ),
@@ -864,7 +882,7 @@ def similars_parallel(
     song_id: list[int] = get_song_id(songs, artist, title, album)
     if len(song_id) == 0 and not enforce_album:
         song_id = get_song_id(songs, artist, title, "")
-    result = find_similar_id(
+    result: pd.DataFrame = find_similar_id(
         songs, song_id, timeframe, similarities=similarities
     )
     queue.put({"index": index, "res": result})
@@ -935,27 +953,27 @@ def song_relations(
             if pd.isnull(playlist.at[song, "Album"]):
                 similars = similars[
                     (
-                        similars["Artist"].str.lower()
-                        == playlist.at[song, "Artist"].lower()
+                        clean_series(similars["Artist"])
+                        == clean_string(playlist.at[song, "Artist"])
                     )
                     & (
-                        similars["Title"].str.lower()
-                        == playlist.at[song, "Title"].lower()
+                        clean_series(similars["Title"])
+                        == clean_string(playlist.at[song, "Title"])
                     )
                 ]
             else:
                 similars = similars[
                     (
-                        similars["Artist"].str.lower()
-                        == playlist.at[song, "Artist"].lower()
+                        clean_series(similars["Artist"])
+                        == clean_string(playlist.at[song, "Artist"])
                     )
                     & (
-                        similars["Album"].str.lower()
-                        == playlist.at[song, "Album"].lower()
+                        clean_series(similars["Album"])
+                        == clean_string(playlist.at[song, "Album"])
                     )
                     & (
-                        similars["Title"].str.lower()
-                        == playlist.at[song, "Title"].lower()
+                        clean_series(similars["Title"])
+                        == clean_string(playlist.at[song, "Title"])
                     )
                 ]
             if similars.index.empty:
@@ -977,7 +995,7 @@ def delete_song(playlist: pd.DataFrame, first: int, last: int = 0) -> pd.DataFra
         last = first
     else:
         last = max(first, last)
-    playlist = pd.concat([playlist[0:first], playlist[last + 1 :]])
+    playlist = pd.concat([playlist[0:first], playlist[last + 1:]])
     if last + 1 in playlist.index:
         playlist.at[last + 1, "Place"] = np.nan
         playlist.at[last + 1, "Last"] = np.nan
@@ -1001,19 +1019,19 @@ def move_song(playlist: pd.DataFrame, song: int, place: int = 0) -> pd.DataFrame
     if place < song:
         playlist = pd.concat(
             [
-                playlist[0 : place + 1],
-                playlist[song : song + 1],
-                playlist[place + 1 : song],
-                playlist[song + 1 :],
+                playlist[0:place + 1],
+                playlist[song:song + 1],
+                playlist[place + 1:song],
+                playlist[song + 1:],
             ]
         )
     else:
         playlist = pd.concat(
             [
                 playlist[0:song],
-                playlist[song + 1 : place + 1],
-                playlist[song : song + 1],
-                playlist[place + 1 :],
+                playlist[song + 1:place + 1],
+                playlist[song:song + 1],
+                playlist[place + 1:],
             ]
         )
     return playlist.reset_index(drop=True)
@@ -1024,11 +1042,11 @@ def remove_played(
 ) -> pd.DataFrame:
     list_copy = list_to_handle.copy()
     list_copy.index.name = "id"
-    list_copy["artist_l"] = list_copy["Artist"].str.lower()
-    list_copy["title_l"] = list_copy["Title"].str.lower()
+    for col in ["Artist", "Title"]:
+        list_copy[col.lower() + "_l"] = clean_series(list_copy[col])
     items_copy = items_to_remove.copy()
-    items_copy["artist_l"] = items_copy["Artist"].str.lower()
-    items_copy["title_l"] = items_copy["Title"].str.lower()
+    for col in ["Artist", "Title"]:
+        items_copy[col.lower() + "_l"] = clean_series(items_copy[col])
     items_copy["exists"] = True
     result: pd.DataFrame = pd.merge(
         list_copy[["artist_l", "title_l"]].reset_index(drop=False),
@@ -1044,9 +1062,8 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     result: pd.DataFrame
     songlist = songlist.copy(deep=False)
     songlist = songlist.sort_values(by="Time added", ascending=True)
-    songlist["artist_l"] = songlist["Artist"].str.lower()
-    songlist["title_l"] = songlist["Title"].str.lower()
-    songlist["album_l"] = songlist["Album"].fillna("").str.lower()
+    for col in ["Artist", "Title", "Album"]:
+        songlist[col.lower() + "_l"] = clean_series(songlist[col])
     artist_songs = songlist.groupby(
         ["artist_l", "album_l", "title_l"]
     ).agg(
@@ -1071,9 +1088,9 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
         ],
         axis=1,
     )
-    no_album = songs[(songs["Album"]=="")]
-    with_album = songs[(songs["Album"]!="")]
-    #TODO try to make this a bit more elegant
+    no_album = songs[(songs["album_l"] == "")]
+    no_album = no_album.drop(columns=["album_l", "Album"])
+    with_album = songs[(songs["album_l"] != "")]
     bestalbum = (
         with_album.groupby(["artist_l", "title_l"])
         .agg({"Played": ["max"]})
@@ -1082,46 +1099,34 @@ def summarize_songlist(songlist: pd.DataFrame) -> pd.DataFrame:
     )
     bestalbum = pd.merge(
         with_album, bestalbum, on=["artist_l", "title_l", "Played"], how="right"
-    )
+    )[["artist_l", "album_l", "title_l"]]
     no_album = pd.merge(
         bestalbum, no_album, on=["artist_l", "title_l"], how="right"
     )
-    no_album["album_l"] = no_album["album_l_x"].fillna("")
-    no_album["Played"] = (
-        no_album["Played_x"].fillna(0) +
-        no_album["Played_y"].fillna(0)
-    ).astype(int)
-    no_album["Played last"] = no_album[["Played last_x", "Played last_y"]].max(axis=1)
-    no_album["Added first"] = no_album[["Added first_x", "Added first_y"]].min(axis=1)
-    no_album = no_album.rename(
-        columns={"Artist_y": "Artist", "Album_x": "Album", "Title_y": "Title"}
-    )[[
-        "Artist",
-        "Album",
-        "Title",
-        "Played last",
-        "Added first",
-        "Played",
-        "artist_l",
-        "album_l",
-        "title_l"
-    ]]
-    overwrite = pd.merge(
-        with_album, no_album[["artist_l", "album_l", "title_l"]], how="inner"
+    merged = pd.merge(
+        with_album, no_album, on=["artist_l", "album_l", "title_l"],
+        how="outer", suffixes=("", "_na")
     )
-    overwrite[["Over"]] = True
-    overwrite = pd.merge(with_album, overwrite, how="left")
-    result = pd.concat(
-        [overwrite[(overwrite["Over"].isna())], no_album]
-    ).sort_values(["Artist", "Album", "Title"]).reset_index(drop=True)
-    result.index.name = "song_id"
-    result["Album"] = result["Album"].fillna("")
-    return result[[
+    merged = merged.fillna({
+        "Artist": merged["Artist_na"],
+        "Title": merged["Title_na"],
+        "Album": "",
+        "album_l": ""
+    })
+    merged["Played"] = (
+        merged["Played"].fillna(0) + merged["Played_na"].fillna(0)
+    ).astype(int)
+    merged["Played last"] = merged[[
+        "Played last", "Played last_na"
+    ]].max(axis=1)
+    merged["Added first"] = merged[[
+        "Added first", "Added first_na"
+    ]].min(axis=1)
+    return merged[[
         "Artist", "Album", "Title", "Played", "Played last",
         "Added first", "artist_l", "album_l", "title_l"
     ]]
 
-#%%
 def filter_and_order(
     artist: str = "",
     album: str = "",
@@ -1166,16 +1171,16 @@ def filter_and_order(
             max_play = max(int(value), 0)
         if key == "per_album":
             per_album = value
-    artist = artist.lower()
-    album = album.lower()
+    artist = clean_string(artist)
+    album = clean_string(album)
     if songs is None:
         songs = summarize_songlist(songlist)
     else:
         songs = songs.copy(deep=False)
     if artist != "":
-        songs = songs[(songs["artist_l"]==artist)]
+        songs = songs[(songs["artist_l"] == artist)]
     if album != "":
-        songs = songs[(songs["album_l"]==album)]
+        songs = songs[(songs["album_l"] == album)]
     if songs.empty:
         print("Results are empty")
         return songs
@@ -1240,10 +1245,10 @@ def find_old_song(
 
 def unique(playlist):
     playlist2 = playlist.copy()
-    playlist2["artist_low"] = playlist2["Artist"].str.lower()
-    playlist2["title_low"] = playlist2["Title"].str.lower()
+    for col in ["Artist", "Title"]:
+        playlist2[col.lower() + "_l"] = clean_series(playlist2[col])
     return len(
-        playlist2.groupby(["artist_low", "title_low"]).
+        playlist2.groupby(["artist_l", "title_l"]).
         agg({"Time added": "count"}).index
     )
 
@@ -1261,6 +1266,12 @@ def save_data(
     songs_tosave = songs.copy()
     playlist_tosave = playlist.copy()
     songlist_tosave["Time added"] = songlist["Time added"].dt.tz_localize(None)
+    songlist_tosave = songlist_tosave.drop(
+        columns=['artist_l', 'album_l', 'title_l'], errors='ignore'
+    )
+    playlist_tosave = playlist_tosave.drop(
+        columns=['artist_l', 'album_l', 'title_l'], errors='ignore'
+    )
     playlist_tosave["Time added"] = playlist["Time added"].dt.tz_localize(None)
     songs_tosave["Played last"] = songs["Played last"].dt.tz_localize(None)
     songs_tosave["Added first"] = songs["Added first"].dt.tz_localize(None)
@@ -1277,11 +1288,25 @@ def revise_summarized_list(
 ) -> pd.DataFrame:
     """Merges the new database into the old one overwriting play data, but
     keeps the grouping and the song_id from the old data."""
-    old = old[["artist_l", "title_l", "album_l", "Group"]].reset_index(drop=False)
+    old = (
+        old[[
+            "artist_l", "title_l", "album_l", "Group",
+            "Artist", "Album", "Title"
+        ]].reset_index(drop=False)
+    )
     merged = (
-        pd.merge(old, new, on=["artist_l", "title_l", "album_l"], how="outer")
+        pd.merge(
+            old, new, on=["artist_l", "title_l", "album_l"], how="outer",
+            suffixes=["_old", ""]
+        )
         .sort_values(by="song_id", ascending=True)
     )
+    merged.to_csv("merged_1.csv")
+    for col in ["Artist", "Album", "Title"]:
+        merged[col] = merged[f"{col}_old"].fillna(merged[col])
+    merged = merged.drop(columns=["Artist_old", "Album_old", "Title_old"])
+    merged = merged.sort_values(by="song_id", ascending=True)
+    merged.to_csv("merged_2.csv")
     #Some data in the old database might not be in the new one (i.e. album has
     #been added)
     removed = merged[(merged["Title"].isna())]
@@ -1307,7 +1332,7 @@ def revise_summarized_list(
         ))
     merged.loc[new_entries, "song_id"] = new_ids
     merged["song_id"] = merged["song_id"].astype(int)
-    merged["Played"] = merged["Played"].astype(int)
+    merged["Played"] = merged["Played"].fillna(0).astype(int)
     merged = merged.set_index("song_id")
     return merged[[
         "Artist", "Album", "Title", "Played", "Played last",
@@ -1327,7 +1352,8 @@ def load_data(
     )
     songlist["Time added"] = pd.to_datetime(songlist["Time added"], format="mixed")
     songlist["Time added"] = songlist["Time added"].dt.tz_localize("UTC")
-    songlist["Album"] = songlist["Album"].fillna("")
+    for col in ["Artist", "Title", "Album"]:
+        songlist[col.lower() + "_l"] = clean_series(songlist[col])
     songs = pd.read_csv(
         filename + "_songs.csv",
         sep=",",
@@ -1337,9 +1363,7 @@ def load_data(
         dtype={"Group": "Int16"},
     )
     songs["Album"] = songs["Album"].fillna("")
-    songs["artist_l"] = songs["Artist"].str.lower()
-    songs["title_l"] = songs["Title"].str.lower()
-    songs["album_l"] = songs["Album"].fillna("").str.lower()
+    songs["album_l"] = songs["album_l"].fillna("")
     songs = songs.drop_duplicates(subset=["artist_l", "album_l", "title_l"])
     playlist_old = pd.read_csv(
         filename + "_playlist.csv",
@@ -1357,7 +1381,9 @@ def load_data(
     playlist = playlist.sort_values(by="Time added").reset_index(drop=True)
     playlist["Secs"] = (
         (
-            playlist["Time added"] - pd.Timestamp("1970-01-01", tz=datetime.timezone.utc)
+            playlist["Time added"] - pd.Timestamp(
+                "1970-01-01", tz=datetime.timezone.utc
+            )
         ).dt.total_seconds()
     )
     playlist_old["Secs"] = (
@@ -1386,6 +1412,8 @@ def load_data(
     playlist = (
         playlist[-(1200-unique_songs):]
     ).reset_index(drop=True)
+    for col in ["Artist", "Title", "Album"]:
+        playlist[col.lower() + "_l"] = clean_series(playlist[col])
     return songlist, songs, playlist
 
 

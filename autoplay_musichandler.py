@@ -28,7 +28,6 @@ class DataBaseWrapper(threading.Thread):
             "list_songs_fwd": self.db.list_songs_fwd,
             "list_songs_bck": self.db.list_songs_bck,
             "suggest_song": self.db.suggest_song,
-            "search_artist": self.db.search_artist,
             "search_string": self.db.search_string,
             "delete_song": self.db.delete_song,
             "add_song": self.db.add_song,
@@ -374,7 +373,7 @@ class MusicHandler():
         ])
         #self.db.new_songlist(sort_by=sort_by, min_play=min_play,
         #                     max_play=max_play)
-        
+
     def search_string(self, key: str, hide_played: bool) -> None:
         self.comm_que.put(["search_string", [key, hide_played]])
         self.result_storage["search_string"] = None
@@ -389,20 +388,6 @@ class MusicHandler():
             #response.to_csv("search.csv")
         return response
 
-    def search_artist(self, artist_string: str) -> None:
-        self.comm_que.put(["search_artist", [artist_string]])
-        #self.found_songs = self.db.search_artist(self.music, artist_string)
-        self.result_storage["search_artist"] = None
-    
-    def ret_search_artists(self) -> Optional[pd.DataFrame]:
-        assert "search_artist" in self.result_storage, \
-            "This should only be called if we started a search for artists."
-        self.get_results_from_queue()
-        response: Optional[pd.DataFrame] = None
-        if self.result_storage["search_artist"] is not None:
-            response = self.result_storage.pop("search_artist")
-        return response
-    
     def song_on_playlist(self, status: dict[str, str]) -> list[dict[str, str]]:
         if not "song" in status:
             return []
@@ -411,7 +396,7 @@ class MusicHandler():
         if current >= pllength:
             return []
         return self.music.playlistinfo()[current:]
-    
+
     def song_played(self) -> list[dict[str, str]]:
         if "delete_song" in self.result_storage:
             self.delete_mpd()
@@ -428,8 +413,10 @@ class MusicHandler():
             mpdlistpos = -1
         if mpdlistpos >= mpdlistlen - FWDLIST:
             # need to add a song to the list automatically
-            if status["state"] != "stop" and \
-                not "suggest_song" in self.result_storage:
+            if (
+                status["state"] != "stop" and
+                not "suggest_song" in self.result_storage
+            ):
                 # if the music is stopped, we don't look for stuff automatically
                 self.find_suggested_song()
         playlistend = self.song_on_playlist(status)
