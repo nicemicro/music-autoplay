@@ -306,13 +306,15 @@ class MusicHandler():
             self.delete_command(1, jumpto - mpdlistpos,
                                 (jumpto <= mpdlistpos + 1))
     
-    def current_song_data(self, currentsong: dict[str, str]) -> tuple[str, str, str]:
-        c_artist = currentsong["artist"].replace(",", "")
+    def current_song_data(
+        self, currentsong: dict[str, str]
+    ) -> tuple[str, str, str]:
+        c_artist = currentsong["artist"]
         if "album" in currentsong:
-            c_album = currentsong["album"].replace(",", "")
+            c_album = currentsong["album"]
         else:
             c_album = ""
-        c_title = currentsong["title"].replace(",", "")
+        c_title = currentsong["title"]
         return c_artist, c_album, c_title
     
     def change_volume(self, change: float) -> None:

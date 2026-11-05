@@ -15,10 +15,13 @@ class Player(ttk.Frame):
     def __init__(self, parent, controller, playlist):
         ttk.Frame.__init__(self, parent)
         self.controller = controller
-        
         # TOP CONTROL
-        self.playlistbox = ttk.Treeview(self, \
-            columns=("Album", "Status"), selectmode='browse', height=playlist)
+        self.playlistbox = ttk.Treeview(
+            self,
+            columns=("Album", "Status"),
+            selectmode='browse',
+            height=playlist
+        )
         self.playlistbox.heading('#0', text='Song')
         self.playlistbox.heading('#1', text='Album')
         self.playlistbox.heading('#2', text='Status')
@@ -162,9 +165,10 @@ class Not_played(ttk.Frame):
         self.songlistframe.columnconfigure(1, weight=0)
         self.songlistframe.rowconfigure(0, weight=1)
         
-        ttk.Button(self, text="Add selected",
-                   command= lambda: self.add_song()) \
-            .grid(row=1, column=0, columnspan=1)
+        ttk.Button(
+            self, text="Add selected",
+            command= lambda: self.add_song()
+        ).grid(row=1, column=0, columnspan=1)
 
         minplay_frame = ttk.Frame(self)
         minplay_frame.columnconfigure(0, weight=1)

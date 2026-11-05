@@ -1287,58 +1287,57 @@ def revise_summarized_list(
     new: pd.DataFrame
 ) -> pd.DataFrame:
     """Merges the new database into the old one overwriting play data, but
-    keeps the grouping and the song_id from the old data."""
-    old = (
-        old[[
-            "artist_l", "title_l", "album_l", "Group",
-            "Artist", "Album", "Title"
-        ]].reset_index(drop=False)
+    keeps the grouping, the song_id and others from the old data."""
+    old_cols = old.columns
+    pop_albums = (
+        new.sort_values(by="Played", ascending=False)
+        .drop_duplicates(subset=["artist_l", "title_l"])
+        [["artist_l", "title_l", "album_l", "Album"]]
     )
-    merged = (
-        pd.merge(
-            old, new, on=["artist_l", "title_l", "album_l"], how="outer",
-            suffixes=["_old", ""]
-        )
-        .sort_values(by="song_id", ascending=True)
-    )
-    merged.to_csv("merged_1.csv")
-    for col in ["Artist", "Album", "Title"]:
-        merged[col] = merged[f"{col}_old"].fillna(merged[col])
-    merged = merged.drop(columns=["Artist_old", "Album_old", "Title_old"])
-    merged = merged.sort_values(by="song_id", ascending=True)
-    merged.to_csv("merged_2.csv")
-    #Some data in the old database might not be in the new one (i.e. album has
-    #been added)
-    removed = merged[(merged["Title"].isna())]
-    merged = merged[(merged["Title"].notna())]
-    removed = pd.merge(
-        removed[["song_id", "artist_l", "title_l", "Group"]],
-        merged[(merged["song_id"].isna())][[
-            "artist_l", "album_l", "title_l", "Artist", "Album", "Title",
-            "Played", "Played last", "Added first"
-        ]],
+    old_fixed = pd.merge(
+        old.reset_index(drop=False),
+        pop_albums,
         on=["artist_l", "title_l"],
-        how="right"
+        how="left",
+        suffixes=("", "_fix")
     )
-    merged = (
-        pd.concat([merged[(merged["song_id"].notna())], removed])
-        .reset_index(drop=True)
+    no_album_mask = (
+        ((old_fixed["album_l"] == "") | (old_fixed["album_l"].isna()))
+        & (old_fixed["album_l_fix"].notna())
     )
-    #we give new song_id to those elements that hasn't been in the old db
-    new_entries = merged[(merged["song_id"].isna())].index
+    old_fixed.loc[no_album_mask, "album_l"] = (
+        old_fixed.loc[no_album_mask, "album_l_fix"]
+    )
+    old_fixed.loc[no_album_mask, "Album"] = (
+        old_fixed.loc[no_album_mask, "Album_fix"]
+    )
+    old_fixed = old_fixed.drop(columns=[
+        "album_l_fix", "Album_fix", "Played", "Played last", "Added first"
+    ])
+    merged = pd.merge(
+        old_fixed,
+        new,
+        on=["artist_l", "title_l", "album_l"],
+        how="outer",
+        suffixes=("", "_new")
+    )
+    merged = merged.fillna({
+        "Artist": merged["Artist_new"],
+        "Album": merged["Album_new"],
+        "Title": merged["Title_new"]
+    }).drop(columns=["Artist_new", "Album_new", "Title_new"])
+    merged = merged.drop_duplicates(subset=["artist_l", "album_l", "title_l"])
+    missing_id = merged["song_id"].isna()
     new_ids = list(range(
         int(merged["song_id"].max()) + 1,
-        int(merged["song_id"].max() + 1 + len(new_entries))
-        ))
-    merged.loc[new_entries, "song_id"] = new_ids
+        int(merged["song_id"].max() + 1 + missing_id.sum())
+    ))
+    if len(new_ids) > 0:
+        merged.loc[missing_id, "song_id"] = new_ids
     merged["song_id"] = merged["song_id"].astype(int)
     merged["Played"] = merged["Played"].fillna(0).astype(int)
-    merged = merged.set_index("song_id")
-    return merged[[
-        "Artist", "Album", "Title", "Played", "Played last",
-        "Added first", "Group", "artist_l", "album_l", "title_l"
-    ]]
-
+    merged = merged.set_index("song_id").sort_index()
+    return merged[old_cols]
 
 def load_data(
     filename: str = "data",

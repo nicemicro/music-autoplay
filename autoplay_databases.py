@@ -54,106 +54,93 @@ class DataBases:
         self.music.idletimeout = None    # for fetching the result of idle command
         self.music.connect("localhost", 6600)
 
+    def _add_missing(self, artist, album, title):
+        ids = e.get_song_id(
+            self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
+            artist=artist,
+            title=title,
+            album=album
+        )
+        self.missing_songs += ids
+
     def search_song(
         self,
         artist: str,
         album: str,
         title: str,
-        strict: bool = True
+        strict: bool = False
     ):
         """
         Searches for songs with artist, album and title given, in the MPD database
         """
-        artist = artist.replace(",", "")
-        album = album.replace(",", "")
-        title = title.replace(",", "")
-        artist = artist.replace("\"", "")
-        album = album.replace("\"", "")
-        title = title.replace("\"", "")
-        artist_s = artist.replace(":", " ")
-        album_s = album.replace(":", " ")
-        title_s = title.replace(":", " ")
+        artist_s = e.clean_string(artist)
+        album_s = e.clean_string(album)
+        title_s = e.clean_string(title)
         s_strings = []
+        s_strings2 = []
         ids: list[int]
+        
+        result = self.music.search(
+            "artist", artist, "title", title, "album", album
+        )
+        if len(result) == 0:
+            result = self.music.search(
+                "artist", artist, "title", title
+            )
+        if len(result) == 0:
+            for word in [w for w in title_s.split(" ") if len(w) > 2]:
+                s_strings.append("title")
+                s_strings.append(word)
+            for word in [w for w in artist_s.split(" ") if len(w) > 2]:
+                s_strings.append("artist")
+                s_strings.append(word)
+            if len(s_strings) == 0:
+                return pd.DataFrame()
+            s_strings2 = s_strings.copy()
+            if len(s_strings) > 30:
+                s_strings = s_strings[0:30]
+            if len(s_strings2) > 40:
+                s_strings = s_strings[0:40]
+            for word in [w for w in album_s.split(" ") if len(w) > 2]:
+                s_strings.append("album")
+                s_strings.append(word)
+            if len(s_strings) > 40:
+                s_strings = s_strings[0:40]
 
-        for word in [w for w in title_s.split(" ") if len(w) > 2]:
-            s_strings.append("title")
-            s_strings.append(word)
-        for word in [w for w in artist_s.split(" ") if len(w) > 2]:
-            s_strings.append("artist")
-            s_strings.append(word)
-        if len(s_strings) == 0:
-            return pd.DataFrame()
-        s_strings2 = s_strings.copy()
-        if len(s_strings) > 30:
-            s_strings = s_strings[0:30]
-        if len(s_strings2) > 40:
-            s_strings = s_strings[0:40]
-        for word in [w for w in album_s.split(" ") if len(w) > 2]:
-            s_strings.append("album")
-            s_strings.append(word)
-        if len(s_strings) > 40:
-            s_strings = s_strings[0:40]
-
-        result = self.music.search(*s_strings)
+            result = self.music.search(*s_strings)
         if len(result) == 0:
             result = self.music.search(*s_strings2)
         if len(result) == 0:
-            ids = e.get_song_id(
-                self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
-                artist=artist,
-                title=title
-            )
-            self.missing_songs += ids
-            return pd.DataFrame(result)
-        if len(result) == 1:
-            #print(f"Search: {artist}-{album}-{title}, found {len(result)}")
-            #print(result)
-            if not "album" in result[0]:
-                result[0]["album"] = ""
-            result = pd.DataFrame(result)
+            self._add_missing(artist, album, title)
+            return pd.DataFrame()
+        result_df = pd.DataFrame(result)
+        if "album" not in result_df.columns:
+            result_df["album"] = ""
+        strict_res_df = result_df[
+            (result_df["artist"].str.lower() == artist.lower()) &
+            (result_df["title"].str.lower() == title.lower())
+        ]
+        if album != "":
+            strict_res_df = strict_res_df[(
+                strict_res_df["album"].str.lower() == album.lower()
+            )]
+        if strict_res_df.empty:
             if strict:
-                if (
-                    result["artist"].str.lower().str.replace(",", "").
-                    str.replace("\"", "")[0] != artist.lower()
-                    or
-                    album and
-                    result["album"].str.lower().str.replace(",", "").
-                    str.replace("\"", "")[0] != album.lower()
-                    or
-                    result["title"].str.lower().str.replace(",", "").
-                    str.replace("\"", "")[0] != title.lower()
-                ):
-                    ids = e.get_song_id(
-                        self.all_songs[
-                            ~(self.all_songs.index.isin(self.missing_songs))
-                        ],
-                        artist=artist,
-                        title=title
-                    )
-                    self.missing_songs += ids
-                    return pd.DataFrame()
-            return result
-        #print(f"Search: {artist}-{album}, found {len(result)}")
-        if not "album" in result[0]:
-            result[0]["album"] = ""
-        result = pd.DataFrame(result)
-        result = result[
-            (result["title"].str.replace(",", "").str.replace("\"", "").str.lower()
-            == title.lower())
-        ]
-        result = result[
-            (result["artist"].str.replace(",", "").str.replace("\"", "").str.lower()
-            == artist.lower())
-        ]
-        if result.empty:
-            ids = e.get_song_id(
-                self.all_songs[~(self.all_songs.index.isin(self.missing_songs))],
-                artist=artist,
-                title=title
-            )
-            self.missing_songs += ids
-        return result.reset_index(drop=True)
+                self._add_missing(artist, album, title)
+                return pd.DataFrame()
+            result_df = result_df[(
+                (e.clean_series(result_df["title"]) == title_s) &
+                (e.clean_series(result_df["artist"]) == artist_s)
+            )]
+            if album != "":
+                result_df = result_df[(
+                    (e.clean_series(result_df["album"]) == album_s)
+                )]
+        else:
+            result_df = strict_res_df
+        if result_df.empty:
+            self._add_missing(artist, album, title)
+        return result_df.reset_index(drop=True)
 
     def new_songlist(self, *args, **kwargs):
         kwargs["songs"] = self.all_songs[
@@ -215,9 +202,9 @@ class DataBases:
         self.missing_songs = (
             missing_songs[~missing_songs[0].isin(result["song_id"])]
         )[0].to_list()
-        result["Artist"] = result["artist"].str.replace(",", "").str.replace("\"", "")
-        result["Album"] = result["album"].str.replace(",", "").str.replace("\"", "")
-        result["Title"] = result["title"].str.replace(",", "").str.replace("\"", "")
+        result["Artist"] = result["artist"]
+        result["Album"] = result["album"]
+        result["Title"] = result["title"]
         return result
 
     def check_missing_song(self, number: int):
@@ -236,9 +223,11 @@ class DataBases:
         songs = self.playablelist
         new_list = pd.DataFrame([])
         while len(new_list.index) < num and index < len(songs.index):
-            song = self.search_song(songs.at[index, "Artist"],
-                    songs.at[index, "Album"],
-                    songs.at[index, "Title"])
+            song = self.search_song(
+                songs.at[index, "Artist"],
+                songs.at[index, "Album"],
+                songs.at[index, "Title"]
+            )
             if len(song.index) > 0:
                 new_list = pd.concat([new_list, song[0:1]])
                 index += 1
@@ -257,9 +246,11 @@ class DataBases:
         songs = self.playablelist
         new_list = pd.DataFrame([])
         while len(new_list.index) < num and index >= 0:
-            song = self.search_song(songs.at[index, "Artist"],
-                    songs.at[index, "Album"],
-                    songs.at[index, "Title"])
+            song = self.search_song(
+                songs.at[index, "Artist"],
+                songs.at[index, "Album"],
+                songs.at[index, "Title"]
+            )
             if len(song.index) > 0:
                 new_list = pd.concat([song[0:1], new_list])
             else:
@@ -624,9 +615,9 @@ class DataBases:
             print("giving up")
             return song
         song = self.mergesongdata(song)
-        newline = (song[0:1][[
-            "Artist", "Album", "Title", "Place", "Last", "Trial", "Method"
-        ]])
+        newline = (song[0:1][
+            self.playlist.columns.intersection(song.columns)
+        ])
         newline = newline.rename(
             {0: last_index+1},
             axis="index"
@@ -681,7 +672,7 @@ class DataBases:
             index += 1
         self.save_file()
 
-    def playlist_append(self, artist, album, title):
+    def playlist_append(self, artist, album, title, params: dict = {}):
         artist_l = e.clean_string(artist)
         album_l = e.clean_string(album)
         title_l = e.clean_string(title)
@@ -695,18 +686,16 @@ class DataBases:
             index = 0
         else:
             index = max(self.playlist.index)+1
-        new_line = pd.DataFrame(
-            [[
-                artist, album, title,
-                pd.Timestamp.now(tz=datetime.timezone.utc),
-                artist_l, album_l, title_l
-            ]],
-            columns=[
-                "Artist", "Album", "Title", "Time added",
-                "artist_l", "album_l", "title_l"
-            ],
-            index=[index]
-        )
+        data = {
+            "Artist": artist,
+            "Album": album,
+            "Title": title,
+            "Time added": pd.Timestamp.now(tz=datetime.timezone.utc),
+            "artist_l": artist_l,
+            "album_l": album_l,
+            "title_l": title_l
+        } | params
+        new_line = pd.DataFrame([data], index=[index])
         self.playlist = pd.concat([self.playlist, new_line])
 
     def add_song(self, position, filedata, jump=False):
@@ -716,27 +705,10 @@ class DataBases:
         else:
             ret_data = pd.DataFrame([{"delfrom": -1, "delto": -1,
                                       "jump": jump}])
-        #print("current suggestion list:")
-        #for i, a, t in zip([line["index"] for line in self.suggestion],
-        #                [line["artist"] for line in self.suggestion],
-        #                [line["title"] for line in self.suggestion]):
-        #    print(f"    {i}. {a} - {t}")
         filename, artist, album, title = (
             filedata[0], filedata[1], filedata[2], filedata[3]
         )
-        if len(self.playlist.index) == 0:
-            index = 0
-        else:
-            index = max(self.playlist.index)+1
-        new_line = pd.DataFrame(
-            [[
-                artist, album, title,
-                pd.Timestamp.now(tz=datetime.timezone.utc), "Man"
-            ]],
-            columns=["Artist", "Album", "Title", "Time added", "Method"],
-            index=[index]
-        )
-        self.playlist = pd.concat([self.playlist, new_line])
+        self.playlist_append(artist, album, title, {"Method": "Man"})
         ret_data["file"] = filename
         return ret_data
 
@@ -844,13 +816,13 @@ class DataBases:
             self.all_songs, indexlist=self.indexlist
         )
         try:
-            self.missing_songs_pd = (
+            missing_songs_pd = (
                 pd.read_csv("missing.csv", header=None)
                 .drop_duplicates()[0]
             )
             self.missing_songs = (
-                self.missing_songs_pd[
-                    (self.missing_songs_pd.isin(self.all_songs.index))
+                missing_songs_pd[
+                    (missing_songs_pd.isin(self.all_songs.index))
                 ].to_list()
             )
         except OSError as error:
