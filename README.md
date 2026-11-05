@@ -38,10 +38,16 @@ with the following four column names in the header:
 ```
 Artist,Album,Title,Time added
 ```
-This should contain a list of songs played in reverse order, with the `Time added` column being in UTC times. Currently,
-this database expects entries for `Artist`, `Album` and `Title` to have commas (`,`) and double quote signs (`"`) removed.
-It should work if those are still included in the list, but this is kind of a vestige of how I first exported my play
-history of a different software.
+This should contain a list of songs played in reverse order, with the `Time added` column being in UTC times. Previously,
+this database expected entries for `Artist`, `Album` and `Title` to have commas (`,`) and double quote signs (`"`) removed.
+Now it works, but keep in mind, that if an entry contains a comma, the whole string in question needs to be in quotation
+marks. If the string contains quotation marks, and it is enclosed in quotation marks, you need double quote signs there.
+
+Example:
+```
+Ain't No Special About This Artist,"This Album has a comma, see?","This ""Title"" Has Quotation Marks, Doesn't it?",
+1999-12-31 23:59:59
+```
 
 You also need to have a CSV file that contains some song statistics. It can be empty, as the software will update it
 dynamically from the information in the `data_songlist.csv`. Create a file called `data_songs.csv`, and insert the
@@ -49,6 +55,13 @@ following header (no new line after this!):
 ```
 song_id,Artist,Album,Title,Played,Played last,Added first,Group,artist_l,album_l,title_l
 ```
+The last three items, ending with `_l` will contain a sanitized version of the artist, album and title informations,
+as in all special characters removed, and string in lower case, and these three fields will be how songs in the
+songlist are uinquely matched to the `song_id`. I.e., `Artist 'n Artist` will resolve to the same as `Artist n artist`
+with the respective `_l` field being `artist n artist` for both. This normalization can't do anything about merged
+'s or 't cases, so if you have `I'm Good` and  ̇`Im Good`, these will be handled as two different songs, as they would
+be normalized as `i m good` and `im good`, which are different. Side note: I have no idea how the software handles the
+Turkish I problem.
 
 A third CSV file will contain the recently played songs in order (this is mostly used for debugging purposes, as most
 of the information in this file is redundant with `data_songlist.csv`. Create a file named `data_playlist.csv`, and add
